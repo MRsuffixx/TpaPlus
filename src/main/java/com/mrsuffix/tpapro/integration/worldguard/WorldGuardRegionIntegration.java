@@ -15,9 +15,14 @@ public final class WorldGuardRegionIntegration implements RegionIntegration {
         if (flag == null) throw new IllegalStateException("WorldGuard flag was not registered during plugin load");
     }
     @Override public String name() { return "WorldGuard"; }
-    @Override public boolean available() { return flag != null; }
+    @Override public boolean available() { return registered(); }
     @Override public boolean allowed(Player player, Location location) {
+        if (!registered()) return false;
         RegionQuery query = WorldGuard.getInstance().getPlatform().getRegionContainer().createQuery();
         return query.testState(BukkitAdapter.adapt(location), WorldGuardPlugin.inst().wrapPlayer(player), flag);
+    }
+    private boolean registered() {
+        try { return WorldGuard.getInstance().getFlagRegistry().get("tpapro-teleport") == flag; }
+        catch (RuntimeException | LinkageError unavailable) { return false; }
     }
 }

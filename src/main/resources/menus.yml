@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 shared:
   previous: {material: ARROW, name: "<yellow>Previous page", slot: 45}
   close: {material: BARRIER, name: "<red>Close", slot: 49}

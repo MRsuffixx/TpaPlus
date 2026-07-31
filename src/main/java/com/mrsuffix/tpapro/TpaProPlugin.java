@@ -90,7 +90,7 @@ public final class TpaProPlugin extends JavaPlugin {
             configs = new ConfigManager(this); configs.initialize(); debug = configs.get().main().debug();
             locales = new LocaleManager(this, configs); locales.reload(); scheduler = new PaperSchedulerAdapter(this);
             clock = ClockSource.system(); requests = new RequestRegistry(clock); cooldowns = new CooldownService(clock);
-            storage = new SqlStorage(configs.get().storage(), getLogger()); repository = new SqlPlayerDataRepository(storage);
+            storage = new SqlStorage(configs.get().storage(), getLogger()); repository = new SqlPlayerDataRepository(storage, getLogger());
             users = new UserService(repository, getLogger(), configs.get().main().language().defaultLocale());
             PermissionService permissions = new PermissionService(); PermissionGroupResolver groups = new PermissionGroupResolver();
             WorldRestrictionService worlds = new WorldRestrictionService(configs); RestrictionRegistry restrictions = new RestrictionRegistry();
@@ -101,7 +101,7 @@ public final class TpaProPlugin extends JavaPlugin {
             regions = createRegionIntegration(); EconomyGateway gateway = createEconomyGateway();
             EconomyTransactionService economy = new EconomyTransactionService(gateway);
             statistics = new StatisticsService(repository, getLogger()); history = new HistoryService(repository, getLogger());
-            SoundService sounds = new SoundService(configs, player -> users.get(player.getUniqueId()).settings().sounds());
+            SoundService sounds = new SoundService(configs, player -> users.get(player.getUniqueId()).settings().sounds(), getLogger());
             teleports = new TeleportService(configs, locales, sounds, permissions, scheduler, clock, requests, safety, traps,
                     worlds, regions, combat, economy, users, history, statistics, cooldowns, this::debug);
             coordinator = new RequestCoordinator(configs, requests, cooldowns, permissions, groups, users,

@@ -34,7 +34,7 @@ public final class TpaProExpansion extends PlaceholderExpansion {
             case "outgoing_requests" -> String.valueOf(requests.outgoing(id).size());
             case "cooldown" -> String.valueOf(Math.max(cooldowns.remainingSecondsCeiling(id, CooldownType.TPA_SEND), cooldowns.remainingSecondsCeiling(id, CooldownType.TPA_HERE_SEND)));
             case "warmup" -> String.valueOf(teleports.remainingSeconds(id));
-            case "last_target" -> statistics.lastTarget(id) == null ? "" : statistics.lastTarget(id).toString();
+            case "last_target" -> statistics.lastTargetName(id) == null ? "" : statistics.lastTargetName(id);
             case "trusted_count" -> String.valueOf(profile == null ? 0 : profile.trusted().size());
             case "blocked_count" -> String.valueOf(profile == null ? 0 : profile.blocked().size());
             case "auto_accept" -> String.valueOf(profile != null && profile.settings().autoAccept());

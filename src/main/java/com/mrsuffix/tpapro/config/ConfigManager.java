@@ -7,13 +7,12 @@ import com.mrsuffix.tpapro.util.Checks;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,7 +27,8 @@ import java.util.logging.Logger;
 import static com.mrsuffix.tpapro.config.ConfigurationBundle.*;
 
 public final class ConfigManager {
-    public static final int CONFIG_VERSION = 1;
+    public static final int CONFIG_VERSION = 2;
+    private static final int RETAINED_CONFIG_BACKUPS = 3;
     private static final List<String> RESOURCES = List.of("config.yml", "storage.yml", "restrictions.yml",
             "integrations.yml", "sounds.yml", "menus.yml", "messages/en_US.yml", "messages/tr_TR.yml");
     private final JavaPlugin plugin;
@@ -207,9 +207,9 @@ public final class ConfigManager {
             ConfigurationSection section = y.getConfigurationSection(key);
             if (section == null) continue;
             String sound = section.getString("sound", "");
-            boolean valid = sound.matches("[A-Z0-9_.]+") || sound.matches("[a-z0-9_.-]+:[a-z0-9_/.-]+");
-            if (!valid) { logger.warning("Sound " + key + " is invalid and was disabled"); continue; }
-            result.put(key, new SoundSetting(global, sound, (float) decimal(section, "volume", 0, 10, 1),
+            String normalized = normalizeSound(sound);
+            if (normalized == null) { logger.warning("Sound " + key + " references unknown sound '" + sound + "' and was disabled"); continue; }
+            result.put(key, new SoundSetting(global, normalized, (float) decimal(section, "volume", 0, 10, 1),
                     (float) decimal(section, "pitch", 0.5, 2, 1)));
         }
         return Map.copyOf(result);
@@ -250,10 +250,27 @@ public final class ConfigManager {
         if (version > CONFIG_VERSION) logger.warning(name + " is from a newer TpaPro version; unknown keys are retained.");
         if (version < CONFIG_VERSION) {
             File source = new File(plugin.getDataFolder(), name);
-            File backup = new File(plugin.getDataFolder(), name + ".backup-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")));
-            try { Files.copy(source.toPath(), backup.toPath(), StandardCopyOption.COPY_ATTRIBUTES); }
+            try { ConfigBackupManager.backup(source.toPath(), new File(plugin.getDataFolder(), "backups").toPath(), RETAINED_CONFIG_BACKUPS); }
             catch (IOException e) { throw new IllegalStateException("Could not back up old " + name, e); }
-            logger.warning(name + " uses configuration version " + version + "; backup created. Safe defaults cover missing keys.");
+            logger.warning(name + " uses configuration version " + version + "; a rotated backup was created. Safe defaults cover missing keys.");
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private String normalizeSound(String raw) {
+        try {
+            if (raw.matches("[A-Z0-9_]+")) {
+                org.bukkit.Sound sound = org.bukkit.Sound.valueOf(raw);
+                NamespacedKey key = Registry.SOUNDS.getKey(sound);
+                return key == null ? null : key.asString();
+            }
+            if (!raw.matches("[a-z0-9_.-]+:[a-z0-9_/.-]+")) return null;
+            NamespacedKey key = NamespacedKey.fromString(raw);
+            if (key == null) return null;
+            if (key.getNamespace().equals(NamespacedKey.MINECRAFT) && Registry.SOUNDS.get(key) == null) return null;
+            return key.asString();
+        } catch (RuntimeException invalid) {
+            return null;
         }
     }
 

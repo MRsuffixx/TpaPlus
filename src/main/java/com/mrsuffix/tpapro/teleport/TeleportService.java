@@ -228,7 +228,10 @@ public final class TeleportService implements Listener, AutoCloseable {
             statistics.increment(details.playerId, StatisticsService.Metric.TELEPORT_SUCCESS);
             if (economy.charged(details.transactionId)) statistics.cost(details.payerId, details.cost);
             economy.forget(details.transactionId);
-            if (details.related != null) statistics.target(details.playerId, details.related);
+            if (details.related != null) {
+                Player relatedPlayer = Bukkit.getPlayer(details.related);
+                statistics.target(details.playerId, details.related, relatedPlayer == null ? null : relatedPlayer.getName());
+            }
             int successCooldown = configs.get().main().teleport().successfulCooldownSeconds();
             if (successCooldown > 0 && !permissions.has(current, Permission.BYPASS_COOLDOWN))
                 cooldowns.start(details.playerId, CooldownType.SUCCESSFUL_TELEPORT, Duration.ofSeconds(successCooldown));

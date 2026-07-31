@@ -9,14 +9,20 @@ import org.bukkit.entity.Player;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 public final class SoundService {
     private final ConfigManager configs;
     private final Predicate<Player> playerEnabled;
+    private final Logger logger;
+    private final Set<String> reportedInvalidSounds = ConcurrentHashMap.newKeySet();
 
-    public SoundService(ConfigManager configs, Predicate<Player> playerEnabled) {
+    public SoundService(ConfigManager configs, Predicate<Player> playerEnabled, Logger logger) {
         this.configs = Objects.requireNonNull(configs, "configs");
         this.playerEnabled = Objects.requireNonNull(playerEnabled, "playerEnabled");
+        this.logger = Objects.requireNonNull(logger, "logger");
     }
 
     public void play(Player player, String key) {
@@ -27,7 +33,9 @@ public final class SoundService {
             Key soundKey = raw.contains(":") ? Key.key(raw) : Key.key("minecraft", raw);
             player.playSound(Sound.sound(soundKey, Sound.Source.MASTER, setting.volume(), setting.pitch()));
         } catch (RuntimeException invalid) {
-            // Configuration was already validated. A registry miss is harmless and deliberately silent per play.
+            String identity = key + "=" + setting.sound();
+            if (reportedInvalidSounds.add(identity))
+                logger.warning("Could not play configured sound " + identity + "; further failures for this value are suppressed");
         }
     }
 }

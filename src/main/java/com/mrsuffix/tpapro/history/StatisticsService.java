@@ -19,6 +19,7 @@ public final class StatisticsService {
     private final Map<UUID, Accumulator> pending = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Metric, LongAdder>> session = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> lastTargets = new ConcurrentHashMap<>();
+    private final Map<UUID, String> lastTargetNames = new ConcurrentHashMap<>();
 
     public StatisticsService(PlayerDataRepository repository, Logger logger) { this.repository = repository; this.logger = logger; }
     public void increment(UUID player, Metric metric) {
@@ -27,10 +28,16 @@ public final class StatisticsService {
     }
     public void cost(UUID player, double amount) { if (Double.isFinite(amount) && amount > 0) pending.computeIfAbsent(player, ignored -> new Accumulator()).cost.add(amount); }
     public void target(UUID player, UUID target) {
+        target(player, target, null);
+    }
+    public void target(UUID player, UUID target, String targetName) {
         pending.computeIfAbsent(player, ignored -> new Accumulator()).targets.computeIfAbsent(target, ignored -> new LongAdder()).increment();
         lastTargets.put(player, target);
+        if (targetName == null || targetName.isBlank()) lastTargetNames.remove(player);
+        else lastTargetNames.put(player, targetName);
     }
     public UUID lastTarget(UUID player) { return lastTargets.get(player); }
+    public String lastTargetName(UUID player) { return lastTargetNames.get(player); }
     public CompletableFuture<PlayerStatistics> load(UUID player) { return repository.statistics(player); }
 
     public long sessionValue(UUID player, Metric metric) {

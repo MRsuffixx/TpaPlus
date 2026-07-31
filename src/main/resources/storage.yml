@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 type: SQLITE
 sqlite:
   file: tpapro.db

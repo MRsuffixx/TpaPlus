@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 debug: false
 language:
   default: en_US

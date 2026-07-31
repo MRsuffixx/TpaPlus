@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 enabled: true
 request-sent: {sound: BLOCK_NOTE_BLOCK_PLING, volume: 0.8, pitch: 1.2}
 request-received: {sound: BLOCK_NOTE_BLOCK_CHIME, volume: 0.8, pitch: 1.0}

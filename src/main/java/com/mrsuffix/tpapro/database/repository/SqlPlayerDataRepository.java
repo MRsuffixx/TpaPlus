@@ -25,10 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 public final class SqlPlayerDataRepository implements PlayerDataRepository {
     private final SqlStorage storage;
-    public SqlPlayerDataRepository(SqlStorage storage) { this.storage = storage; }
+    private final Logger logger;
+    public SqlPlayerDataRepository(SqlStorage storage) { this(storage, Logger.getLogger(SqlPlayerDataRepository.class.getName())); }
+    public SqlPlayerDataRepository(SqlStorage storage, Logger logger) { this.storage = storage; this.logger = logger; }
 
     @Override public CompletableFuture<PlayerData> load(UUID playerId, PlayerSettings defaults) {
         return storage.query(connection -> {
@@ -190,7 +193,10 @@ public final class SqlPlayerDataRepository implements PlayerDataRepository {
                 PrivacyMode privacy;
                 try { privacy = PrivacyMode.valueOf(rs.getString("privacy_mode")); } catch (RuntimeException invalid) { privacy = PrivacyMode.EVERYONE; }
                 String language = rs.getString("language");
-                if (language != null && !language.matches("[a-z]{2}_[A-Z]{2}")) language = null;
+                if (language != null && !language.matches("[a-z]{2}_[A-Z]{2}")) {
+                    logger.warning("Ignoring invalid stored language for player " + playerId);
+                    language = null;
+                }
                 return new PlayerSettings(privacy, rs.getBoolean("auto_accept"), rs.getBoolean("auto_trusted_only"),
                         rs.getBoolean("chat_notifications"), rs.getBoolean("actionbar_notifications"),
                         rs.getBoolean("title_notifications"), rs.getBoolean("sounds"), rs.getBoolean("trap_warnings"), language);
