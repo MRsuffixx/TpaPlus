@@ -133,7 +133,8 @@ public final class RequestRegistry {
     public synchronized List<TeleportRequest> invalidateFor(UUID player, boolean asSender, boolean asTarget) {
         List<TeleportRequest> invalidated = new ArrayList<>();
         for (TeleportRequest request : active()) {
-            if ((asSender && request.senderId().equals(player)) || (asTarget && request.targetId().equals(player))) {
+            if (request.state() == RequestState.PENDING
+                    && ((asSender && request.senderId().equals(player)) || (asTarget && request.targetId().equals(player)))) {
                 if (request.transitionTo(RequestState.INVALIDATED)) invalidated.add(request);
             }
         }
@@ -143,7 +144,7 @@ public final class RequestRegistry {
     public synchronized List<TeleportRequest> invalidateBetween(UUID sender, UUID target) {
         List<TeleportRequest> invalidated = new ArrayList<>();
         for (TeleportRequest request : active()) {
-            if (request.senderId().equals(sender) && request.targetId().equals(target)
+            if (request.state() == RequestState.PENDING && request.senderId().equals(sender) && request.targetId().equals(target)
                     && request.transitionTo(RequestState.INVALIDATED)) invalidated.add(request);
         }
         return List.copyOf(invalidated);

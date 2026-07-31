@@ -349,7 +349,8 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
     private boolean force(CommandSender sender, String[] args) { permissions.require(sender, Permission.ADMIN_FORCE_TELEPORT);
         if (args.length != 2) return usage(sender, "/tpapro forceteleport <player> <target>"); Player player = Bukkit.getPlayerExact(args[0]), target = Bukkit.getPlayerExact(args[1]);
         if (player == null || target == null) { send(sender, "errors.player-offline", Map.of("player", player == null ? args[0] : args[1])); return true; }
-        TeleportService.StartResult result = teleports.force(player, target); if (result.success()) send(sender, "admin.force-success", Map.of("player", player.getName(), "target", target.getName()));
+        TeleportService.StartResult result = teleports.force(player, target, permissions.has(sender, Permission.BYPASS_SAFETY));
+        if (result.success()) send(sender, "admin.force-success", Map.of("player", player.getName(), "target", target.getName()));
         else send(sender, "errors.teleport-failed", Map.of("reason", result.reason())); return true; }
 
     private void showOutcome(Player player, RequestOutcome outcome, CooldownType cooldownType) {

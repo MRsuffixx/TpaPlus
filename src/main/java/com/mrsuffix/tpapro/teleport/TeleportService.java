@@ -93,7 +93,8 @@ public final class TeleportService implements Listener, AutoCloseable {
     public StartResult startRequest(TeleportRequest request, Player traveler, Location destination, TeleportKind kind,
                                     UUID related, int warmupSeconds, double cost) {
         if (request.state() != RequestState.ACCEPTED) return new StartResult(StartStatus.INVALID_REQUEST, "request-invalid");
-        return begin(traveler, request.id(), request.id(), request.senderId(), destination, kind, related, warmupSeconds, cost, false);
+        return begin(traveler, request.id(), request.id(), request.senderId(), destination, kind, related,
+                warmupSeconds, cost, false, permissions.has(traveler, Permission.BYPASS_SAFETY));
     }
 
     public StartResult startBack(Player player, Location destination, double cost, int warmupSeconds) {
@@ -104,15 +105,24 @@ public final class TeleportService implements Listener, AutoCloseable {
                     permissions.has(player, Permission.BYPASS_COST));
             if (!charge.success()) return new StartResult(StartStatus.ECONOMY, charge.status().name().toLowerCase());
         }
-        return begin(player, null, transaction, player.getUniqueId(), destination, TeleportKind.BACK, null, warmupSeconds, cost, false);
+        StartResult started = begin(player, null, transaction, player.getUniqueId(), destination, TeleportKind.BACK,
+                null, warmupSeconds, cost, false, permissions.has(player, Permission.BYPASS_SAFETY));
+        if (!started.success()) settleTransaction(transaction, player.getUniqueId(), true);
+        return started;
     }
 
-    public StartResult force(Player player, Player target) {
-        return begin(player, null, UUID.randomUUID(), player.getUniqueId(), target.getLocation(), TeleportKind.ADMIN, target.getUniqueId(), 0, 0, true);
+    public StartResult force(Player player, Player target, boolean safetyBypass) {
+        if (target.isInsideVehicle() || target.isGliding())
+            return new StartResult(StartStatus.RESTRICTED, "invalid-target-state");
+        SafeTeleportService.Result safe = safety.find(player.getUniqueId(), target.getLocation(), safetyBypass);
+        if (!safe.safe()) return new StartResult(StartStatus.RESTRICTED, safe.reason());
+        return begin(player, null, UUID.randomUUID(), player.getUniqueId(), safe.location(), TeleportKind.ADMIN,
+                target.getUniqueId(), 0, 0, true, safetyBypass);
     }
 
     private StartResult begin(Player traveler, UUID requestId, UUID transactionId, UUID payerId, Location destination, TeleportKind kind,
-                              UUID related, int warmupSeconds, double cost, boolean restrictionBypass) {
+                              UUID related, int warmupSeconds, double cost, boolean restrictionBypass,
+                              boolean safetyBypass) {
         if (!traveler.isOnline()) return new StartResult(StartStatus.PLAYER_OFFLINE, "offline");
         if (executing.containsKey(traveler.getUniqueId())) return new StartResult(StartStatus.BUSY, "teleport-executing");
         boolean worldBypass = restrictionBypass || permissions.has(traveler, Permission.BYPASS_WORLD);
@@ -132,7 +142,7 @@ public final class TeleportService implements Listener, AutoCloseable {
         Instant now = clock.now(); int seconds = permissions.has(traveler, Permission.BYPASS_WARMUP) ? 0 : Math.max(0, warmupSeconds);
         WarmupSession session = warmups.start(traveler.getUniqueId(), requestId, position(traveler.getLocation()), now, now.plusSeconds(seconds));
         Active details = new Active(session.id(), traveler.getUniqueId(), requestId, transactionId, payerId, destination.clone(), kind,
-                related, Math.max(0, cost), restrictionBypass);
+                related, Math.max(0, cost), restrictionBypass, safetyBypass);
         TpaTeleportPrepareEvent prepare = new TpaTeleportPrepareEvent(session.id(), traveler.getUniqueId(), requestId, destination);
         Bukkit.getPluginManager().callEvent(prepare);
         if (prepare.isCancelled()) { warmups.cancel(traveler.getUniqueId(), session.id()); return new StartResult(StartStatus.EVENT_CANCELLED, "event-cancelled"); }
@@ -184,8 +194,7 @@ public final class TeleportService implements Listener, AutoCloseable {
     private void executeLoaded(Active details) {
         Player player = Bukkit.getPlayer(details.playerId);
         if (player == null) { failExecuting(details, "offline"); return; }
-        boolean safetyBypass = details.restrictionBypass || permissions.has(player, Permission.BYPASS_SAFETY);
-        SafeTeleportService.Result safe = safety.find(player.getUniqueId(), details.destination, safetyBypass);
+        SafeTeleportService.Result safe = safety.find(player.getUniqueId(), details.destination, details.safetyBypass);
         if (!safe.safe()) { failExecuting(details, safe.reason()); return; }
         TrapRiskAnalyzer.Risk risk = trapAnalyzer.analyze(safe.location(), false);
         if (!details.restrictionBypass && risk.risky()
@@ -218,6 +227,7 @@ public final class TeleportService implements Listener, AutoCloseable {
                     StoredLocation.from(safe.location(), clock.now()), details.kind, details.related));
             statistics.increment(details.playerId, StatisticsService.Metric.TELEPORT_SUCCESS);
             if (economy.charged(details.transactionId)) statistics.cost(details.payerId, details.cost);
+            economy.forget(details.transactionId);
             if (details.related != null) statistics.target(details.playerId, details.related);
             int successCooldown = configs.get().main().teleport().successfulCooldownSeconds();
             if (successCooldown > 0 && !permissions.has(current, Permission.BYPASS_COOLDOWN))
@@ -243,7 +253,7 @@ public final class TeleportService implements Listener, AutoCloseable {
         Player player = Bukkit.getPlayer(playerId);
         if (player != null) { locales.send(player, playerId, "warmup.cancelled", Map.of("reason", reason)); sounds.play(player, "teleport-cancelled"); }
         statistics.increment(playerId, StatisticsService.Metric.WARMUP_CANCELLED);
-        refund(details);
+        settleTransaction(details.transactionId, details.payerId, true);
         Bukkit.getPluginManager().callEvent(new TpaTeleportCancelEvent(details.sessionId, playerId, details.requestId,
                 details.destination, reason)); return true;
     }
@@ -254,15 +264,22 @@ public final class TeleportService implements Listener, AutoCloseable {
         if (details.requestId != null) requests.transition(details.requestId, RequestState.FAILED);
         Player player = Bukkit.getPlayer(details.playerId);
         if (player != null) locales.send(player, player.getUniqueId(), "errors.teleport-failed", Map.of("reason", reason));
-        statistics.increment(details.playerId, StatisticsService.Metric.TELEPORT_FAILED); refund(details);
+        statistics.increment(details.playerId, StatisticsService.Metric.TELEPORT_FAILED);
+        settleTransaction(details.transactionId, details.payerId, true);
         Bukkit.getPluginManager().callEvent(new TpaTeleportCancelEvent(details.sessionId, details.playerId,
                 details.requestId, details.destination, reason));
     }
-    private void refund(Active details) {
-        if (!configs.get().integrations().economy().refundOnFailure()) return;
-        EconomyTransactionService.Result result = economy.refundOnce(details.transactionId); Player payer = Bukkit.getPlayer(details.payerId);
+    private void settleTransaction(UUID transactionId, UUID payerId, boolean failed) {
+        if (!failed || !configs.get().integrations().economy().refundOnFailure()) {
+            economy.forget(transactionId);
+            return;
+        }
+        EconomyTransactionService.Result result = economy.refundOnce(transactionId); Player payer = Bukkit.getPlayer(payerId);
         if (payer != null && result.status() == EconomyTransactionService.Status.REFUNDED)
             locales.send(payer, payer.getUniqueId(), "economy.refunded", Map.of("cost", money(result.amount())));
+        if (result.status() == EconomyTransactionService.Status.FAILED)
+            debug.accept("transaction=" + transactionId + " refund-failed error=" + result.error());
+        economy.forget(transactionId);
     }
 
     private void notifyStart(Player player, int seconds) {
@@ -323,5 +340,6 @@ public final class TeleportService implements Listener, AutoCloseable {
     }
     private static String money(double value) { return String.format(java.util.Locale.ROOT, "%.2f", value); }
     private record Active(UUID sessionId, UUID playerId, UUID requestId, UUID transactionId, UUID payerId, Location destination,
-                          TeleportKind kind, UUID related, double cost, boolean restrictionBypass) { }
+                          TeleportKind kind, UUID related, double cost, boolean restrictionBypass,
+                          boolean safetyBypass) { }
 }

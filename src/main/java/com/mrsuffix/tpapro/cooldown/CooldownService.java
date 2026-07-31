@@ -17,7 +17,7 @@ public final class CooldownService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    public void start(UUID playerId, CooldownType type, Duration duration) {
+    public synchronized void start(UUID playerId, CooldownType type, Duration duration) {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(duration, "duration");
@@ -30,7 +30,7 @@ public final class CooldownService {
         expirations.put(new Key(playerId, type), expiry);
     }
 
-    public Duration remaining(UUID playerId, CooldownType type) {
+    public synchronized Duration remaining(UUID playerId, CooldownType type) {
         Key key = new Key(playerId, type);
         Instant expires = expirations.get(key);
         if (expires == null) return Duration.ZERO;
@@ -53,23 +53,24 @@ public final class CooldownService {
         return !remaining(playerId, type).isZero();
     }
 
-    public void restore(UUID playerId, CooldownType type, Instant expiresAt) {
+    public synchronized void restore(UUID playerId, CooldownType type, Instant expiresAt) {
         if (expiresAt.isAfter(clock.now())) expirations.put(new Key(playerId, type), expiresAt);
     }
 
-    public int reset(UUID playerId) {
+    public synchronized int reset(UUID playerId) {
         int before = expirations.size();
         expirations.keySet().removeIf(key -> key.playerId.equals(playerId));
         return before - expirations.size();
     }
 
-    public Map<CooldownType, Instant> snapshot(UUID playerId) {
+    public synchronized Map<CooldownType, Instant> snapshot(UUID playerId) {
         Map<CooldownType, Instant> result = new java.util.EnumMap<>(CooldownType.class);
-        expirations.forEach((key, value) -> { if (key.playerId.equals(playerId) && value.isAfter(clock.now())) result.put(key.type, value); });
+        Instant now = clock.now();
+        expirations.forEach((key, value) -> { if (key.playerId.equals(playerId) && value.isAfter(now)) result.put(key.type, value); });
         return Map.copyOf(result);
     }
 
-    public void clear() { expirations.clear(); }
+    public synchronized void clear() { expirations.clear(); }
 
     private record Key(UUID playerId, CooldownType type) { }
 }

@@ -3,6 +3,7 @@ package com.mrsuffix.tpapro.listener;
 import com.mrsuffix.tpapro.config.ConfigManager;
 import com.mrsuffix.tpapro.cooldown.CooldownService;
 import com.mrsuffix.tpapro.database.repository.PlayerDataRepository;
+import com.mrsuffix.tpapro.database.AsyncWriteTracker;
 import com.mrsuffix.tpapro.history.StoredLocation;
 import com.mrsuffix.tpapro.locale.LocaleManager;
 import com.mrsuffix.tpapro.request.RequestCoordinator;
@@ -19,16 +20,26 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.time.Duration;
 
 public final class PlayerLifecycleListener implements Listener {
     private final ConfigManager configs; private final UserService users; private final PlayerDataRepository repository;
     private final LocaleManager locales; private final CooldownService cooldowns; private final RequestCoordinator requests;
     private final SchedulerAdapter scheduler; private final ClockSource clock; private final Logger logger;
+    private final AsyncWriteTracker cooldownWrites;
     public PlayerLifecycleListener(ConfigManager configs, UserService users, PlayerDataRepository repository,
                                    LocaleManager locales, CooldownService cooldowns, RequestCoordinator requests,
                                    SchedulerAdapter scheduler, ClockSource clock, Logger logger) {
+        this(configs, users, repository, locales, cooldowns, requests, scheduler, clock, logger,
+                new AsyncWriteTracker());
+    }
+    public PlayerLifecycleListener(ConfigManager configs, UserService users, PlayerDataRepository repository,
+                                   LocaleManager locales, CooldownService cooldowns, RequestCoordinator requests,
+                                   SchedulerAdapter scheduler, ClockSource clock, Logger logger,
+                                   AsyncWriteTracker cooldownWrites) {
         this.configs = configs; this.users = users; this.repository = repository; this.locales = locales;
         this.cooldowns = cooldowns; this.requests = requests; this.scheduler = scheduler; this.clock = clock; this.logger = logger;
+        this.cooldownWrites = cooldownWrites;
     }
     @EventHandler public void onJoin(PlayerJoinEvent event) { load(event.getPlayer()); }
     public java.util.concurrent.CompletableFuture<Void> load(Player player) {
@@ -43,10 +54,15 @@ public final class PlayerLifecycleListener implements Listener {
     }
     @EventHandler public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer(); requests.handleQuit(player.getUniqueId());
-        if (configs.get().storage().persistCooldowns()) repository.saveCooldowns(player.getUniqueId(), cooldowns.snapshot(player.getUniqueId()))
-                .exceptionally(error -> { logger.log(Level.WARNING, "Could not save cooldowns for " + player.getUniqueId(), error); return null; });
+        if (configs.get().storage().persistCooldowns()) {
+            var write = cooldownWrites.track(repository.saveCooldowns(player.getUniqueId(),
+                    cooldowns.snapshot(player.getUniqueId())));
+            write.exceptionally(error -> { logger.log(Level.WARNING, "Could not save cooldowns for " + player.getUniqueId(), error); return null; });
+        }
         cooldowns.reset(player.getUniqueId()); locales.clearPreference(player.getUniqueId()); users.unload(player.getUniqueId());
     }
+    public boolean awaitPendingCooldownWrites(Duration timeout) { return cooldownWrites.await(timeout); }
+    public int pendingCooldownWrites() { return cooldownWrites.size(); }
     @EventHandler public void onDeath(PlayerDeathEvent event) {
         if (configs.get().main().back().saveOn().death()) users.saveBack(event.getEntity().getUniqueId(), StoredLocation.from(event.getEntity().getLocation(), clock.now()));
     }
