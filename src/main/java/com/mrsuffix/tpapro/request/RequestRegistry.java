@@ -16,6 +16,7 @@ import java.util.UUID;
 public final class RequestRegistry {
     private final ClockSource clock;
     private final Map<UUID, TeleportRequest> requests = new LinkedHashMap<>();
+    private final List<TeleportRequest> unreportedExpirations = new ArrayList<>();
 
     public RequestRegistry(ClockSource clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -50,7 +51,7 @@ public final class RequestRegistry {
                     }
                     TeleportRequest replacement = newRequest(sender, target, type, now, lifetime, metadata);
                     requests.put(replacement.id(), replacement);
-                    yield RequestOutcome.changed(replacement, true, false);
+                    yield RequestOutcome.changed(replacement, true, false, existing);
                 }
             };
         }
@@ -99,7 +100,7 @@ public final class RequestRegistry {
         TeleportRequest request = requests.get(requestId);
         if (request == null) return false;
         if (request.state() == RequestState.PENDING && request.isExpiredAt(clock.now())) {
-            request.transitionTo(RequestState.EXPIRED);
+            if (request.transitionTo(RequestState.EXPIRED)) unreportedExpirations.add(request);
             return false;
         }
         return request.transitionTo(next);
@@ -123,7 +124,10 @@ public final class RequestRegistry {
     }
 
     public synchronized List<TeleportRequest> expireDue() {
-        return expireDueInternal(clock.now());
+        expireDueInternal(clock.now());
+        List<TeleportRequest> expired = List.copyOf(unreportedExpirations);
+        unreportedExpirations.clear();
+        return expired;
     }
 
     public synchronized List<TeleportRequest> invalidateFor(UUID player, boolean asSender, boolean asTarget) {
@@ -136,17 +140,17 @@ public final class RequestRegistry {
         return List.copyOf(invalidated);
     }
 
-    public synchronized int invalidateBetween(UUID sender, UUID target) {
-        int count = 0;
+    public synchronized List<TeleportRequest> invalidateBetween(UUID sender, UUID target) {
+        List<TeleportRequest> invalidated = new ArrayList<>();
         for (TeleportRequest request : active()) {
             if (request.senderId().equals(sender) && request.targetId().equals(target)
-                    && request.transitionTo(RequestState.INVALIDATED)) count++;
+                    && request.transitionTo(RequestState.INVALIDATED)) invalidated.add(request);
         }
-        return count;
+        return List.copyOf(invalidated);
     }
 
-    public synchronized int clearFor(UUID player) {
-        return invalidateFor(player, true, true).size();
+    public synchronized List<TeleportRequest> clearFor(UUID player) {
+        return invalidateFor(player, true, true);
     }
 
     public synchronized int activeCount() {
@@ -198,7 +202,10 @@ public final class RequestRegistry {
     private List<TeleportRequest> expireDueInternal(Instant now) {
         List<TeleportRequest> expired = new ArrayList<>();
         for (TeleportRequest request : active()) {
-            if (request.isExpiredAt(now) && request.transitionTo(RequestState.EXPIRED)) expired.add(request);
+            if (request.isExpiredAt(now) && request.transitionTo(RequestState.EXPIRED)) {
+                expired.add(request);
+                unreportedExpirations.add(request);
+            }
         }
         return List.copyOf(expired);
     }

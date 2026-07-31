@@ -114,19 +114,29 @@ public final class RequestCoordinator {
                 maxIncoming, Map.of("sender_name", sender.getName(), "target_name", target.getName()));
         if (!created.success()) return created;
         TeleportRequest request = created.request();
+        if (created.supersededRequest() != null) settleTerminal(created.supersededRequest());
         debug.accept("request=" + request.id() + " created type=" + type + " sender=" + senderId + " target=" + targetId
                 + " replaced=" + created.replaced() + " refreshed=" + created.refreshed());
         if (!created.refreshed()) {
             TpaRequestCreateEvent before = new TpaRequestCreateEvent(request.snapshot());
             Bukkit.getPluginManager().callEvent(before);
-            if (before.isCancelled()) { registry.transition(request.id(), RequestState.INVALIDATED); return RequestOutcome.failure(RequestFailure.EVENT_CANCELLED); }
+            if (before.isCancelled()) {
+                registry.transition(request.id(), RequestState.INVALIDATED);
+                settleTerminal(request);
+                return RequestOutcome.failure(RequestFailure.EVENT_CANCELLED);
+            }
         }
         double cost = cost(sender, request, trusted);
         if (!created.refreshed() && configs.get().integrations().economy().enabled()
                 && configs.get().integrations().economy().chargeMode() == ChargeMode.ON_REQUEST) {
             EconomyTransactionService.Result charge = economy.chargeOnce(request.id(), senderId, cost,
                     permissions.has(sender, Permission.BYPASS_COST));
-            if (!charge.success()) { showEconomy(sender, charge); registry.transition(request.id(), RequestState.INVALIDATED); return RequestOutcome.failure(RequestFailure.ECONOMY); }
+            if (!charge.success()) {
+                showEconomy(sender, charge);
+                registry.transition(request.id(), RequestState.INVALIDATED);
+                settleTerminal(request);
+                return RequestOutcome.failure(RequestFailure.ECONOMY);
+            }
             if (charge.status() == EconomyTransactionService.Status.CHARGED)
                 locales.send(sender, senderId, "economy.charged", Map.of("cost", money(charge.amount())));
         }
@@ -176,7 +186,11 @@ public final class RequestCoordinator {
         if (configs.get().restrictions().combat().blockAccepting() && !permissions.has(target, Permission.BYPASS_COMBAT)
                 && combat.inCombat(target)) return RequestOutcome.failure(RequestFailure.COMBAT);
         Player sender = Bukkit.getPlayer(request.senderId());
-        if (sender == null) { registry.transition(request.id(), RequestState.INVALIDATED); return RequestOutcome.failure(RequestFailure.PLAYER_OFFLINE); }
+        if (sender == null) {
+            registry.transition(request.id(), RequestState.INVALIDATED);
+            settleTerminal(request);
+            return RequestOutcome.failure(RequestFailure.PLAYER_OFFLINE);
+        }
         Player traveler = request.type() == RequestType.TPA ? sender : target;
         Player destinationOwner = request.type() == RequestType.TPA ? target : sender;
         Location destination = destinationOwner.getLocation();
@@ -206,7 +220,10 @@ public final class RequestCoordinator {
             if (charge.status() == EconomyTransactionService.Status.CHARGED)
                 locales.send(sender, sender.getUniqueId(), "economy.charged", Map.of("cost", money(charge.amount())));
         }
-        if (!registry.transition(request.id(), RequestState.ACCEPTED)) return RequestOutcome.failure(RequestFailure.INVALID_STATE);
+        if (!registry.transition(request.id(), RequestState.ACCEPTED)) {
+            settleTerminal(request);
+            return RequestOutcome.failure(RequestFailure.INVALID_STATE);
+        }
         debug.accept("request=" + request.id() + " accepted target=" + target.getUniqueId() + " traveler=" + traveler.getUniqueId());
         int warmup = (int) groupResolver.resolve(configs.get().main().permissionGroups().get("warmup"), traveler::hasPermission,
                 configs.get().main().teleport().warmupSeconds(), PermissionGroupResolver.Benefit.LOWEST);
@@ -217,7 +234,7 @@ public final class RequestCoordinator {
                 traveler.equals(sender) ? target.getUniqueId() : sender.getUniqueId(), warmup, cost);
         if (!started.success()) {
             registry.transition(request.id(), RequestState.FAILED);
-            if (configs.get().integrations().economy().refundOnFailure()) refund(request.id(), sender.getUniqueId());
+            settleTerminal(request);
             return RequestOutcome.failure(started.status() == TeleportService.StartStatus.ECONOMY ? RequestFailure.ECONOMY : RequestFailure.UNSAFE);
         }
         locales.send(sender, sender.getUniqueId(), "request.accepted-sender", Map.of("target", target.getName()));
@@ -241,7 +258,7 @@ public final class RequestCoordinator {
         if (sender != null) { locales.send(sender, sender.getUniqueId(), "request.denied-sender", Map.of("target", target.getName())); sounds.play(sender, "request-denied"); }
         locales.send(target, targetId, "request.denied-target", Map.of("sender", sender == null ? request.senderId() : sender.getName()));
         sounds.play(target, "request-denied"); statistics.increment(targetId, StatisticsService.Metric.REQUEST_DENIED);
-        if (configs.get().integrations().economy().refundOnFailure()) refund(request.id(), request.senderId());
+        settleTerminal(request);
         Bukkit.getPluginManager().callEvent(new TpaRequestDeniedEvent(request.snapshot())); return RequestOutcome.success(request);
     }
 
@@ -260,7 +277,7 @@ public final class RequestCoordinator {
         debug.accept("request=" + request.id() + " cancelled sender=" + senderId);
         locales.send(sender, senderId, "request.cancelled-sender", Map.of("target", target == null ? request.targetId() : target.getName()));
         if (target != null) locales.send(target, target.getUniqueId(), "request.cancelled-target", Map.of("sender", sender.getName()));
-        if (configs.get().integrations().economy().refundOnFailure()) refund(request.id(), request.senderId());
+        settleTerminal(request);
         Bukkit.getPluginManager().callEvent(new TpaRequestCancelEvent(request.snapshot())); return outcome;
     }
 
@@ -271,7 +288,7 @@ public final class RequestCoordinator {
             if (sender != null) { locales.send(sender, sender.getUniqueId(), "request.expired-sender", Map.of("target", target == null ? request.targetId() : target.getName())); sounds.play(sender, "request-expired"); }
             if (target != null) { locales.send(target, target.getUniqueId(), "request.expired-target", Map.of("sender", sender == null ? request.senderId() : sender.getName())); sounds.play(target, "request-expired"); }
             statistics.increment(request.senderId(), StatisticsService.Metric.REQUEST_EXPIRED);
-            if (configs.get().integrations().economy().refundOnFailure()) refund(request.id(), request.senderId());
+            settleTerminal(request);
             Bukkit.getPluginManager().callEvent(new TpaRequestExpireEvent(request.snapshot()));
         }
         registry.pruneTerminal(500); confirmations.prune();
@@ -284,12 +301,22 @@ public final class RequestCoordinator {
             Player other = Bukkit.getPlayer(request.senderId().equals(playerId) ? request.targetId() : request.senderId());
             if (other != null) locales.send(other, other.getUniqueId(), "request.cancelled-target",
                     Map.of("sender", playerId.toString()));
-            if (configs.get().integrations().economy().refundOnFailure()) refund(request.id(), request.senderId());
+            settleTerminal(request);
             Bukkit.getPluginManager().callEvent(new TpaRequestCancelEvent(request.snapshot()));
         }
     }
 
-    public int blockAndInvalidate(UUID blocker, UUID blocked) { return registry.invalidateBetween(blocked, blocker); }
+    public int blockAndInvalidate(UUID blocker, UUID blocked) {
+        List<TeleportRequest> invalidated = registry.invalidateBetween(blocked, blocker);
+        invalidated.forEach(this::settleTerminal);
+        return invalidated.size();
+    }
+
+    public int clearAndInvalidate(UUID playerId) {
+        List<TeleportRequest> invalidated = registry.clearFor(playerId);
+        invalidated.forEach(this::settleTerminal);
+        return invalidated.size();
+    }
     public RestrictionContext context(UUID sender, UUID target, RequestType type) {
         Player senderPlayer = Bukkit.getPlayer(sender), targetPlayer = Bukkit.getPlayer(target);
         return new RestrictionContext(sender, target, type, senderPlayer == null ? null : senderPlayer.getWorld().getName(),
@@ -312,10 +339,22 @@ public final class RequestCoordinator {
         else locales.send(player, player.getUniqueId(), "economy.failed");
     }
 
+    private void settleTerminal(TeleportRequest request) {
+        confirmations.invalidateRequest(request.id());
+        if (!configs.get().integrations().economy().refundOnFailure()) {
+            economy.forget(request.id());
+            return;
+        }
+        refund(request.id(), request.senderId());
+    }
+
     private void refund(UUID transaction, UUID payerId) {
         EconomyTransactionService.Result result = economy.refundOnce(transaction); Player payer = Bukkit.getPlayer(payerId);
         if (payer != null && result.status() == EconomyTransactionService.Status.REFUNDED)
             locales.send(payer, payerId, "economy.refunded", Map.of("cost", money(result.amount())));
+        if (result.status() == EconomyTransactionService.Status.FAILED)
+            debug.accept("transaction=" + transaction + " refund-failed error=" + result.error());
+        economy.forget(transaction);
     }
 
     private static String money(double value) { return String.format(java.util.Locale.ROOT, "%.2f", value); }

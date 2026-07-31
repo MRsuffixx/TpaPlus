@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class EconomyTransactionService {
     public enum Status { CHARGED, ALREADY_CHARGED, BYPASSED, UNAVAILABLE, INSUFFICIENT, FAILED, REFUNDED, NOT_CHARGED }
@@ -16,34 +17,53 @@ public final class EconomyTransactionService {
     public EconomyTransactionService(EconomyGateway gateway) { this.gateway = Objects.requireNonNull(gateway, "gateway"); }
 
     public Result chargeOnce(UUID transactionId, UUID payer, double amount, boolean bypass) {
+        Objects.requireNonNull(transactionId, "transactionId");
+        Objects.requireNonNull(payer, "payer");
         if (!Double.isFinite(amount) || amount < 0) throw new IllegalArgumentException("Invalid amount");
         if (bypass || amount == 0) return new Result(Status.BYPASSED, 0, gateway.available() ? gateway.balance(payer) : 0, null);
-        State state = transactions.computeIfAbsent(transactionId, ignored -> new State());
-        synchronized (state) {
-            if (state.charged && !state.refunded) return new Result(Status.ALREADY_CHARGED, state.amount, gateway.balance(payer), null);
-            if (!gateway.available()) return new Result(Status.UNAVAILABLE, amount, 0, "unavailable");
+        AtomicReference<Result> outcome = new AtomicReference<>();
+        transactions.compute(transactionId, (ignored, existing) -> {
+            if (existing != null) {
+                outcome.set(new Result(Status.ALREADY_CHARGED, existing.amount, gateway.balance(existing.payer), null));
+                return existing;
+            }
+            if (!gateway.available()) {
+                outcome.set(new Result(Status.UNAVAILABLE, amount, 0, "unavailable"));
+                return null;
+            }
             double balance = gateway.balance(payer);
-            if (!Double.isFinite(balance) || balance < amount) return new Result(Status.INSUFFICIENT, amount, balance, "insufficient");
+            if (!Double.isFinite(balance) || balance < amount) {
+                outcome.set(new Result(Status.INSUFFICIENT, amount, balance, "insufficient"));
+                return null;
+            }
             EconomyGateway.Transaction result = gateway.withdraw(payer, amount);
-            if (!result.success()) return new Result(Status.FAILED, amount, result.balance(), result.error());
-            state.charged = true; state.refunded = false; state.amount = amount; state.payer = payer;
-            return new Result(Status.CHARGED, amount, result.balance(), null);
-        }
+            if (!result.success()) {
+                outcome.set(new Result(Status.FAILED, amount, result.balance(), result.error()));
+                return null;
+            }
+            outcome.set(new Result(Status.CHARGED, amount, result.balance(), null));
+            return new State(amount, payer);
+        });
+        return outcome.get();
     }
 
     public Result refundOnce(UUID transactionId) {
-        State state = transactions.get(transactionId);
-        if (state == null) return new Result(Status.NOT_CHARGED, 0, 0, null);
-        synchronized (state) {
-            if (!state.charged || state.refunded) return new Result(Status.NOT_CHARGED, state.amount, gateway.balance(state.payer), null);
+        Objects.requireNonNull(transactionId, "transactionId");
+        AtomicReference<Result> outcome = new AtomicReference<>(new Result(Status.NOT_CHARGED, 0, 0, null));
+        transactions.computeIfPresent(transactionId, (ignored, state) -> {
             EconomyGateway.Transaction result = gateway.deposit(state.payer, state.amount);
-            if (!result.success()) return new Result(Status.FAILED, state.amount, result.balance(), result.error());
-            state.refunded = true;
-            return new Result(Status.REFUNDED, state.amount, result.balance(), null);
-        }
+            if (!result.success()) {
+                outcome.set(new Result(Status.FAILED, state.amount, result.balance(), result.error()));
+                return state;
+            }
+            outcome.set(new Result(Status.REFUNDED, state.amount, result.balance(), null));
+            return null;
+        });
+        return outcome.get();
     }
 
-    public boolean charged(UUID transactionId) { State state = transactions.get(transactionId); return state != null && state.charged && !state.refunded; }
+    public boolean charged(UUID transactionId) { return transactions.containsKey(transactionId); }
     public void forget(UUID transactionId) { transactions.remove(transactionId); }
-    private static final class State { private boolean charged; private boolean refunded; private double amount; private UUID payer; }
+    public int trackedTransactions() { return transactions.size(); }
+    private record State(double amount, UUID payer) { }
 }

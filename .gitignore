@@ -106,3 +106,7 @@ $RECYCLE.BIN/
 *.tmp
 *.bak
 *.swp
+
+
+# modrinth dosyaları
+modrinth.md

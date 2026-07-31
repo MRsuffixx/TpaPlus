@@ -341,7 +341,7 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
     private boolean clearRequests(CommandSender sender, String[] args) { permissions.require(sender, Permission.ADMIN_CLEAR_REQUESTS);
         if (args.length != 2 || !args[0].equalsIgnoreCase("clear")) return usage(sender, "/tpapro requests clear <player>");
         OfflinePlayer target = cached(args[1]); if (target == null) { send(sender, "errors.player-not-found", Map.of("player", args[1])); return true; }
-        int count = requests.clearFor(target.getUniqueId()); send(sender, "request.cleared", Map.of("player", display(target), "count", count)); return true; }
+        int count = coordinator.clearAndInvalidate(target.getUniqueId()); send(sender, "request.cleared", Map.of("player", display(target), "count", count)); return true; }
     private boolean resetCooldown(CommandSender sender, String[] args) { permissions.require(sender, Permission.ADMIN_RESET_COOLDOWN);
         if (args.length != 2 || !args[0].equalsIgnoreCase("reset")) return usage(sender, "/tpapro cooldown reset <player>");
         OfflinePlayer target = cached(args[1]); if (target == null) { send(sender, "errors.player-not-found", Map.of("player", args[1])); return true; }
