@@ -21,5 +21,6 @@ public enum RequestFailure {
     UNSAFE,
     EVENT_CANCELLED,
     CONFIRMATION_REQUIRED,
+    CONFIRMATION_CAPACITY,
     NOT_READY
 }

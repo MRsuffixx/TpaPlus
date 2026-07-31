@@ -360,7 +360,8 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
             case DUPLICATE -> "request.duplicate"; case SENDER_LIMIT -> "request.sender-limit"; case TARGET_LIMIT -> "request.target-limit";
             case BLOCKED -> "request.blocked"; case PRIVACY -> "request.privacy"; case COOLDOWN -> "cooldown.active";
             case COMBAT -> "teleport.combat-blocked"; case WORLD -> "teleport.world-blocked"; case REGION -> "teleport.region-blocked";
-            case ECONOMY, CONFIRMATION_REQUIRED -> null; case UNSAFE -> "errors.unsafe-destination";
+            case ECONOMY, CONFIRMATION_REQUIRED -> null; case CONFIRMATION_CAPACITY -> "trap.capacity";
+            case UNSAFE -> "errors.unsafe-destination";
             case NOT_FOUND -> "request.no-pending"; case EXPIRED, INVALID_STATE, EVENT_CANCELLED -> "request.invalid-state";
             case NOT_READY -> "errors.not-ready";
             default -> "errors.internal";

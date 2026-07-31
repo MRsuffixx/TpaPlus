@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class RequestCoordinator {
     private final ConfigManager configs; private final RequestRegistry registry; private final CooldownService cooldowns;
@@ -56,7 +55,6 @@ public final class RequestCoordinator {
     private final TrapRiskAnalyzer trapAnalyzer; private final ConfirmationTokenService confirmations; private final TeleportService teleports;
     private final LocaleManager locales; private final SoundService sounds; private final StatisticsService statistics;
     private final FriendsIntegration friends; private final java.util.function.Consumer<String> debug;
-    private final Map<String, UUID> confirmationRequests = new ConcurrentHashMap<>();
 
     public RequestCoordinator(ConfigManager configs, RequestRegistry registry, CooldownService cooldowns,
                               PermissionService permissions, PermissionGroupResolver groupResolver, UserService users,
@@ -173,7 +171,7 @@ public final class RequestCoordinator {
     }
 
     public RequestOutcome confirm(UUID targetId, String token) {
-        requireMain(); UUID requestId = confirmationRequests.remove(token);
+        requireMain(); UUID requestId = confirmations.request(token, targetId).orElse(null);
         if (requestId == null) return RequestOutcome.failure(RequestFailure.NOT_FOUND);
         Player target = Bukkit.getPlayer(targetId); TeleportRequest request = registry.find(requestId).orElse(null);
         if (target == null || request == null || !request.targetId().equals(targetId)) return RequestOutcome.failure(RequestFailure.NOT_FOUND);
@@ -201,8 +199,10 @@ public final class RequestCoordinator {
         if (risk.risky() && trapMode == TrapMode.WARN && users.get(target.getUniqueId()).settings().trapWarnings()) {
             if (token == null) {
                 String issued = confirmations.issue(target.getUniqueId(), request.id(), destination,
-                        Duration.ofSeconds(configs.get().main().trap().confirmationSeconds()));
-                confirmationRequests.put(issued, request.id()); sendTrapWarning(target, request, issued, risk); return RequestOutcome.failure(RequestFailure.CONFIRMATION_REQUIRED);
+                        Duration.ofSeconds(configs.get().main().trap().confirmationSeconds())).orElse(null);
+                if (issued == null) return RequestOutcome.failure(RequestFailure.CONFIRMATION_CAPACITY);
+                sendTrapWarning(target, request, issued, risk);
+                return RequestOutcome.failure(RequestFailure.CONFIRMATION_REQUIRED);
             }
             if (!confirmations.consume(token, target.getUniqueId(), request.id(), destination)) return RequestOutcome.failure(RequestFailure.CONFIRMATION_REQUIRED);
         }
