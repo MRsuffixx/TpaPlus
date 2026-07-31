@@ -109,6 +109,7 @@ trust:
   already: "<yellow><player> is already trusted.</yellow>"
   missing: "<yellow><player> is not trusted.</yellow>"
   limit: "<red>You reached the trusted-player limit (<limit>).</red>"
+  mutual-limit: "<red><player> cannot be added mutually because their trusted-player limit is <limit>.</red>"
   list-title: "<aqua>Trusted players (<count>):</aqua>"
   list-empty: "<yellow>You have no trusted players.</yellow>"
 block:

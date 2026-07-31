@@ -109,6 +109,7 @@ trust:
   already: "<yellow><player> zaten güvenilir.</yellow>"
   missing: "<yellow><player> güvenilir değil.</yellow>"
   limit: "<red>Güvenilir oyuncu sınırına ulaştın (<limit>).</red>"
+  mutual-limit: "<red><player>, güvenilir oyuncu sınırı <limit> olduğu için karşılıklı eklenemiyor.</red>"
   list-title: "<aqua>Güvenilir oyuncular (<count>):</aqua>"
   list-empty: "<yellow>Güvenilir oyuncun yok.</yellow>"
 block:

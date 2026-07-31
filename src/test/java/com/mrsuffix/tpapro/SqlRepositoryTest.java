@@ -5,12 +5,15 @@ import com.mrsuffix.tpapro.config.ConfigurationBundle.StorageType;
 import com.mrsuffix.tpapro.database.connection.SqlStorage;
 import com.mrsuffix.tpapro.database.repository.SqlPlayerDataRepository;
 import com.mrsuffix.tpapro.settings.PlayerSettings;
+import com.mrsuffix.tpapro.history.HistoryEntry;
+import com.mrsuffix.tpapro.history.TeleportKind;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,6 +32,22 @@ class SqlRepositoryTest {
             var loaded = repository.load(owner, PlayerSettings.defaults("en_US")).join();
             assertThat(loaded.trusted()).containsExactly(target); assertThat(loaded.settings().language()).isEqualTo("tr_TR");
             assertThat(loaded.settings().autoAccept()).isTrue();
+        }
+    }
+
+    @Test void historyRetentionPrunesOnlyRowsOlderThanCutoff() {
+        Storage config = new Storage(StorageType.SQLITE, "jdbc:sqlite:" + temporary.resolve("history.db"), "", "", 1, 1,
+                10_000, 1_800_000, 0, 5, false);
+        try (SqlStorage storage = new SqlStorage(config, Logger.getAnonymousLogger())) {
+            storage.initialize().join(); SqlPlayerDataRepository repository = new SqlPlayerDataRepository(storage);
+            UUID player = UUID.randomUUID(), world = UUID.randomUUID(); Instant cutoff = Instant.parse("2026-08-01T00:00:00Z");
+            repository.addHistory(new HistoryEntry(UUID.randomUUID(), player, cutoff.minusSeconds(1), world, "world",
+                    0, 64, 0, TeleportKind.TPA, null)).join();
+            repository.addHistory(new HistoryEntry(UUID.randomUUID(), player, cutoff, world, "world",
+                    1, 64, 1, TeleportKind.TPA_HERE, null)).join();
+            assertThat(repository.pruneHistoryBefore(cutoff).join()).isOne();
+            assertThat(repository.history(player, 10, 0).join()).singleElement().satisfies(entry ->
+                    assertThat(entry.timestamp()).isEqualTo(cutoff));
         }
     }
 }

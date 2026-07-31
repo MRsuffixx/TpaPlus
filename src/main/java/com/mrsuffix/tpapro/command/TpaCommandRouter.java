@@ -142,8 +142,9 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
     private boolean toggle(CommandSender sender) {
         Player player = player(sender); permissions.require(sender, Permission.TOGGLE); UserProfile profile = users.get(player.getUniqueId());
         boolean disabling = profile.settings().privacyMode() != PrivacyMode.DISABLED;
-        users.updateSettings(player.getUniqueId(), profile.settings().withPrivacy(disabling ? PrivacyMode.DISABLED : PrivacyMode.EVERYONE));
-        send(player, disabling ? "privacy.disabled" : "privacy.enabled"); return true;
+        persistSettings(player, profile.settings().withPrivacy(disabling ? PrivacyMode.DISABLED : PrivacyMode.EVERYONE),
+                disabling ? "privacy.disabled" : "privacy.enabled", Map.of(), null);
+        return true;
     }
 
     private boolean autoAccept(CommandSender sender, String[] args) {
@@ -151,7 +152,8 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
         if (args.length > 1) return usage(player, "/tpautaccept [player]");
         if (args.length == 0) {
             PlayerSettings settings = users.get(player.getUniqueId()).settings().withAutoAccept(!users.get(player.getUniqueId()).settings().autoAccept());
-            users.updateSettings(player.getUniqueId(), settings); send(player, settings.autoAccept() ? "autaccept.enabled" : "autaccept.disabled"); return true;
+            persistSettings(player, settings, settings.autoAccept() ? "autaccept.enabled" : "autaccept.disabled",
+                    Map.of(), null); return true;
         }
         OfflinePlayer target = cached(args[0]); if (target == null) { send(player, "errors.player-not-found", Map.of("player", args[0])); return true; }
         if (target.getUniqueId().equals(player.getUniqueId())) { send(player, "errors.self-target"); return true; }
@@ -166,22 +168,54 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
             return usage(player, "/tpatrust <add|remove|list> [player]");
         OfflinePlayer target = cached(args[1]); if (target == null) { send(player, "errors.player-not-found", Map.of("player", args[1])); return true; }
         if (target.getUniqueId().equals(player.getUniqueId())) { send(player, "errors.self-target"); return true; }
+        if (configs.get().main().trusted().mutual()) {
+            mutateMutualTrust(player, target, args[0].equalsIgnoreCase("add"));
+            return true;
+        }
         if (args[0].equalsIgnoreCase("add")) {
             int limit = groups.resolveLimit(configs.get().main().permissionGroups().get("trusted-limit"), player::hasPermission,
                     configs.get().main().trusted().maximum());
             if (users.get(player.getUniqueId()).trusted().size() >= limit) { send(player, "trust.limit", Map.of("limit", limit)); return true; }
             boolean added = users.addTrusted(player.getUniqueId(), target.getUniqueId(), limit);
-            if (added && configs.get().main().trusted().mutual())
-                users.addTrusted(target.getUniqueId(), player.getUniqueId(), configs.get().main().trusted().maximum());
             if (!target.isOnline()) users.unload(target.getUniqueId());
             send(player, added ? "trust.added" : "trust.already", Map.of("player", display(target)));
         } else {
             boolean removed = users.removeTrusted(player.getUniqueId(), target.getUniqueId());
-            if (removed && configs.get().main().trusted().mutual()) users.removeTrusted(target.getUniqueId(), player.getUniqueId());
             if (!target.isOnline()) users.unload(target.getUniqueId());
             send(player, removed ? "trust.removed" : "trust.missing", Map.of("player", display(target)));
         }
         return true;
+    }
+    private void mutateMutualTrust(Player player, OfflinePlayer target, boolean add) {
+        users.load(target.getUniqueId()).thenAccept(profile -> scheduler.run(() -> {
+            if (!player.isOnline()) { if (!target.isOnline()) users.unload(target.getUniqueId()); return; }
+            if (add) {
+                int ownerLimit = groups.resolveLimit(configs.get().main().permissionGroups().get("trusted-limit"),
+                        player::hasPermission, configs.get().main().trusted().maximum());
+                Player onlineTarget = Bukkit.getPlayer(target.getUniqueId());
+                int targetLimit = onlineTarget == null ? configs.get().main().trusted().maximum()
+                        : groups.resolveLimit(configs.get().main().permissionGroups().get("trusted-limit"),
+                        onlineTarget::hasPermission, configs.get().main().trusted().maximum());
+                UserProfile owner = users.get(player.getUniqueId());
+                boolean ownerAlready = owner.trusts(target.getUniqueId());
+                boolean targetAlready = profile.trusts(player.getUniqueId());
+                if (!ownerAlready && owner.trusted().size() >= ownerLimit) {
+                    send(player, "trust.limit", Map.of("limit", ownerLimit));
+                } else if (!targetAlready && profile.trusted().size() >= targetLimit) {
+                    send(player, "trust.mutual-limit", Map.of("player", display(target), "limit", targetLimit));
+                } else {
+                    boolean added = ownerAlready || users.addTrusted(player.getUniqueId(), target.getUniqueId(), ownerLimit);
+                    boolean reciprocal = targetAlready || users.addTrusted(target.getUniqueId(), player.getUniqueId(), targetLimit);
+                    send(player, added && reciprocal && !ownerAlready ? "trust.added" : "trust.already",
+                            Map.of("player", display(target)));
+                }
+            } else {
+                boolean removed = users.removeTrusted(player.getUniqueId(), target.getUniqueId());
+                users.removeTrusted(target.getUniqueId(), player.getUniqueId());
+                send(player, removed ? "trust.removed" : "trust.missing", Map.of("player", display(target)));
+            }
+            if (!target.isOnline()) users.unload(target.getUniqueId());
+        })).exceptionally(error -> { scheduler.run(() -> send(player, "errors.database-unavailable")); return null; });
     }
     private boolean trustList(Player player) {
         if (configs.get().main().guiEnabled()) { gui.openTrusted(player, 1); return true; }
@@ -227,10 +261,12 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
             if (!configs.get().main().language().allowPlayerSelection() || !locales.isRegistered(value)) {
                 send(player, "settings.locale-invalid", Map.of("locales", String.join(", ", locales.availableLocales()))); return true;
             }
-            updated = updated.withLanguage(value); locales.setPreference(player.getUniqueId(), value);
+            updated = updated.withLanguage(value);
         } else updated = updated.withNotification(key, parseBoolean(value));
-        users.updateSettings(player.getUniqueId(), updated); send(player, key.equals("language") ? "settings.language-set" : "settings.updated",
-                key.equals("language") ? Map.of("language", value) : Map.of("setting", key, "value", value)); return true;
+        persistSettings(player, updated, key.equals("language") ? "settings.language-set" : "settings.updated",
+                key.equals("language") ? Map.of("language", value) : Map.of("setting", key, "value", value),
+                key.equals("language") ? value : null);
+        return true;
     }
     private void showSettings(Player player, PlayerSettings settings) {
         send(player, "settings.title"); Map.of("privacy", settings.privacyMode(), "auto_accept", settings.autoAccept(),
@@ -416,6 +452,15 @@ public final class TpaCommandRouter implements CommandExecutor, TabCompleter {
     private void send(CommandSender sender, String key) { send(sender, key, Map.of()); }
     private void send(CommandSender sender, String key, Map<String, ?> values) { if (sender instanceof Player player) locales.send(player, player.getUniqueId(), key, values); else sender.sendMessage(locales.componentForLocale(configs.get().main().language().defaultLocale(), "prefix", Map.of()).append(locales.componentForLocale(configs.get().main().language().defaultLocale(), key, values))); }
     private String locale(CommandSender sender) { return sender instanceof Player player ? locales.locale(player.getUniqueId()) : configs.get().main().language().defaultLocale(); }
+    private void persistSettings(Player player, PlayerSettings settings, String successKey, Map<String, ?> values,
+                                 String selectedLocale) {
+        users.updateSettings(player.getUniqueId(), settings).thenAccept(saved -> scheduler.run(() -> {
+            if (!player.isOnline()) return;
+            if (!saved) { send(player, "errors.database-unavailable"); return; }
+            if (selectedLocale != null) locales.setPreference(player.getUniqueId(), selectedLocale);
+            send(player, successKey, values);
+        }));
+    }
     private static String display(OfflinePlayer player) { return player.getName() == null ? player.getUniqueId().toString().substring(0, 8) : player.getName(); }
     private static UUID uuid(String value) { try { return UUID.fromString(value); } catch (IllegalArgumentException invalid) { throw new IllegalArgumentException("request UUID"); } }
     private static boolean parseBoolean(String value) { if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on")) return true; if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("off")) return false; throw new IllegalArgumentException("true or false"); }
