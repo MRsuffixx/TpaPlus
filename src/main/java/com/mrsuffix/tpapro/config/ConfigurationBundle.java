@@ -43,7 +43,7 @@ public record ConfigurationBundle(Main main, Restrictions restrictions, Integrat
                            double costMultiplier) { }
     public record Back(boolean enabled, int expirationSeconds, int cooldownSeconds, SaveOn saveOn) { }
     public record SaveOn(boolean tpa, boolean tpaHere, boolean adminTeleport, boolean death, boolean portal) { }
-    public record History(boolean enabled, int defaultSize) { }
+    public record History(boolean enabled, int defaultSize, int retentionDays) { }
     public record Statistics(boolean enabled, int flushSeconds) { }
     public record PermissionGroups(Map<String, List<PermissionGroupResolver.Entry>> values) {
         public PermissionGroups { values = Map.copyOf(values); }

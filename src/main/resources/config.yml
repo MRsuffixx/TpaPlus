@@ -83,6 +83,7 @@ back:
 history:
   enabled: true
   default-size: 20
+  retention-days: 90
 statistics:
   enabled: true
   flush-seconds: 30

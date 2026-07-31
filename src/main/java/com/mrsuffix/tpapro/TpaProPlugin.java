@@ -66,9 +66,11 @@ public final class TpaProPlugin extends JavaPlugin {
     private ConfigManager configs; private LocaleManager locales; private SchedulerAdapter scheduler;
     private SqlStorage storage; private PlayerDataRepository repository; private RequestRegistry requests;
     private CooldownService cooldowns; private UserService users; private TeleportService teleports;
-    private StatisticsService statistics; private RequestCoordinator coordinator; private PlayerLifecycleListener lifecycle;
-    private ScheduledTask expirationTask; private final ReloadableTask statisticsTask = new ReloadableTask(); private RegionIntegration regions;
+    private StatisticsService statistics; private HistoryService history; private RequestCoordinator coordinator; private PlayerLifecycleListener lifecycle;
+    private ScheduledTask expirationTask; private ScheduledTask historyPruneTask;
+    private final ReloadableTask statisticsTask = new ReloadableTask(); private RegionIntegration regions;
     private CombatService combat; private boolean foliaDetected; private final List<String> integrations = new ArrayList<>();
+    private ClockSource clock;
 
     @Override public void onLoad() {
         foliaDetected = classPresent("io.papermc.paper.threadedregions.RegionizedServer");
@@ -87,7 +89,7 @@ public final class TpaProPlugin extends JavaPlugin {
             getDataFolder().mkdirs();
             configs = new ConfigManager(this); configs.initialize(); debug = configs.get().main().debug();
             locales = new LocaleManager(this, configs); locales.reload(); scheduler = new PaperSchedulerAdapter(this);
-            ClockSource clock = ClockSource.system(); requests = new RequestRegistry(clock); cooldowns = new CooldownService(clock);
+            clock = ClockSource.system(); requests = new RequestRegistry(clock); cooldowns = new CooldownService(clock);
             storage = new SqlStorage(configs.get().storage(), getLogger()); repository = new SqlPlayerDataRepository(storage);
             users = new UserService(repository, getLogger(), configs.get().main().language().defaultLocale());
             PermissionService permissions = new PermissionService(); PermissionGroupResolver groups = new PermissionGroupResolver();
@@ -98,7 +100,7 @@ public final class TpaProPlugin extends JavaPlugin {
             List<CombatIntegration> combatHooks = createCombatHooks(); combat = new CombatService(builtIn, combatHooks);
             regions = createRegionIntegration(); EconomyGateway gateway = createEconomyGateway();
             EconomyTransactionService economy = new EconomyTransactionService(gateway);
-            statistics = new StatisticsService(repository, getLogger()); HistoryService history = new HistoryService(repository, getLogger());
+            statistics = new StatisticsService(repository, getLogger()); history = new HistoryService(repository, getLogger());
             SoundService sounds = new SoundService(configs, player -> users.get(player.getUniqueId()).settings().sounds());
             teleports = new TeleportService(configs, locales, sounds, permissions, scheduler, clock, requests, safety, traps,
                     worlds, regions, combat, economy, users, history, statistics, cooldowns, this::debug);
@@ -136,8 +138,15 @@ public final class TpaProPlugin extends JavaPlugin {
 
     @Override public void onDisable() {
         ready.set(false);
-        if (expirationTask != null) expirationTask.cancel(); statisticsTask.close();
+        if (expirationTask != null) expirationTask.cancel();
+        if (historyPruneTask != null) historyPruneTask.cancel();
+        statisticsTask.close();
         if (teleports != null) teleports.close();
+        if (lifecycle != null) {
+            Duration timeout = Duration.ofSeconds(configs == null ? 10 : configs.get().storage().shutdownTimeoutSeconds());
+            if (!lifecycle.awaitPendingCooldownWrites(timeout))
+                getLogger().warning("Timed out waiting for pending cooldown persistence writes.");
+        }
         if (statistics != null) {
             try { statistics.flush().get(5, TimeUnit.SECONDS); }
             catch (Exception error) { getLogger().log(Level.WARNING, "Timed out flushing final statistics", error); }
@@ -159,7 +168,14 @@ public final class TpaProPlugin extends JavaPlugin {
 
     private void scheduleMaintenance() {
         expirationTask = scheduler.runRepeating(coordinator::cleanupExpired, Duration.ofSeconds(1), Duration.ofSeconds(1));
+        historyPruneTask = scheduler.runRepeating(this::pruneHistory, Duration.ofMinutes(1), Duration.ofHours(6));
         scheduleStatistics();
+    }
+    private void pruneHistory() {
+        int retentionDays = configs.get().main().history().retentionDays();
+        history.pruneBefore(clock.now().minus(Duration.ofDays(retentionDays))).thenAccept(count -> {
+            if (debug && count > 0) debug("history-prune removed=" + count + " retention-days=" + retentionDays);
+        });
     }
     private void scheduleStatistics() {
         Duration period = Duration.ofSeconds(configs.get().main().statistics().flushSeconds());

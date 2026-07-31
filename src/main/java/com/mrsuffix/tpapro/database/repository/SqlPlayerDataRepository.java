@@ -97,6 +97,15 @@ public final class SqlPlayerDataRepository implements PlayerDataRepository {
         });
     }
 
+    @Override public CompletableFuture<Integer> pruneHistoryBefore(Instant cutoff) {
+        return storage.query(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement("DELETE FROM tpapro_history WHERE timestamp_ms < ?")) {
+                ps.setLong(1, cutoff.toEpochMilli());
+                return ps.executeUpdate();
+            }
+        });
+    }
+
     @Override public CompletableFuture<Void> applyStatisticsDelta(UUID playerId, PlayerStatistics d, Map<UUID, Long> targetDeltas) {
         return storage.query(connection -> {
             boolean oldAuto = connection.getAutoCommit(); connection.setAutoCommit(false);

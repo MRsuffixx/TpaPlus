@@ -25,6 +25,7 @@ public interface PlayerDataRepository {
     CompletableFuture<Void> saveBackLocation(UUID playerId, StoredLocation location);
     CompletableFuture<Void> addHistory(HistoryEntry entry);
     CompletableFuture<List<HistoryEntry>> history(UUID playerId, int limit, int offset);
+    CompletableFuture<Integer> pruneHistoryBefore(Instant cutoff);
     CompletableFuture<Void> applyStatisticsDelta(UUID playerId, PlayerStatistics delta, Map<UUID, Long> targetDeltas);
     CompletableFuture<PlayerStatistics> statistics(UUID playerId);
     CompletableFuture<Void> saveCooldowns(UUID playerId, Map<CooldownType, Instant> cooldowns);

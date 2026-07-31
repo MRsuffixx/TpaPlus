@@ -4,6 +4,7 @@ import com.mrsuffix.tpapro.database.repository.PlayerDataRepository;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -16,5 +17,10 @@ public final class HistoryService {
     public CompletableFuture<List<HistoryEntry>> list(UUID player, int size, int page) {
         int safeSize = Math.max(1, Math.min(1000, size)); int safePage = Math.max(1, page);
         return repository.history(player, safeSize, (safePage - 1) * safeSize);
+    }
+    public CompletableFuture<Integer> pruneBefore(Instant cutoff) {
+        return repository.pruneHistoryBefore(cutoff).whenComplete((count, error) -> {
+            if (error != null) logger.log(Level.WARNING, "Could not prune expired teleport history", error);
+        });
     }
 }

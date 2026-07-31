@@ -49,6 +49,7 @@ class TrustedUserTest {
         @Override public CompletableFuture<Void> saveBackLocation(UUID id, StoredLocation location) { return CompletableFuture.completedFuture(null); }
         @Override public CompletableFuture<Void> addHistory(HistoryEntry entry) { return CompletableFuture.completedFuture(null); }
         @Override public CompletableFuture<List<HistoryEntry>> history(UUID id, int limit, int offset) { return CompletableFuture.completedFuture(List.of()); }
+        @Override public CompletableFuture<Integer> pruneHistoryBefore(Instant cutoff) { return CompletableFuture.completedFuture(0); }
         @Override public CompletableFuture<Void> applyStatisticsDelta(UUID id, PlayerStatistics delta, Map<UUID, Long> targets) { return CompletableFuture.completedFuture(null); }
         @Override public CompletableFuture<PlayerStatistics> statistics(UUID id) { return CompletableFuture.completedFuture(PlayerStatistics.empty()); }
         @Override public CompletableFuture<Void> saveCooldowns(UUID id, Map<CooldownType, Instant> values) { return CompletableFuture.completedFuture(null); }

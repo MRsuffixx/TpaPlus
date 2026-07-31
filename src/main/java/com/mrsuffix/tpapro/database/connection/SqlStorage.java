@@ -23,7 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class SqlStorage implements AutoCloseable {
-    public enum Status { NEW, CONNECTING, CONNECTED, FAILED, CLOSED }
+    public enum Status { NEW, CONNECTING, CONNECTED, FAILED, CLOSING, CLOSED }
     @FunctionalInterface public interface SqlFunction<T> { T apply(Connection connection) throws SQLException; }
 
     private final Storage settings;
@@ -80,9 +80,14 @@ public final class SqlStorage implements AutoCloseable {
 
     public <T> CompletableFuture<T> query(SqlFunction<T> operation) {
         Objects.requireNonNull(operation, "operation");
+        Status current = status.get();
+        if (current == Status.CLOSING || current == Status.CLOSED)
+            return CompletableFuture.failedFuture(new SQLException("Storage is closing"));
         CompletableFuture<Void> ready = initialize();
         return ready.thenApplyAsync(ignored -> {
-            if (status.get() != Status.CONNECTED) throw new CompletionException(new SQLException("Storage unavailable"));
+            Status state = status.get();
+            if (state != Status.CONNECTED && state != Status.CLOSING)
+                throw new CompletionException(new SQLException("Storage unavailable"));
             try (Connection connection = dataSource.getConnection()) { return operation.apply(connection); }
             catch (SQLException error) { throw new CompletionException(error); }
         }, executor);
@@ -138,9 +143,8 @@ public final class SqlStorage implements AutoCloseable {
     }
 
     @Override public synchronized void close() {
-        if (status.getAndSet(Status.CLOSED) == Status.CLOSED) return;
-        HikariDataSource source = dataSource;
-        if (source != null) source.close();
+        Status previous = status.getAndSet(Status.CLOSING);
+        if (previous == Status.CLOSED || previous == Status.CLOSING) return;
         executor.shutdown();
         try {
             if (!executor.awaitTermination(settings.shutdownTimeoutSeconds(), TimeUnit.SECONDS)) {
@@ -150,6 +154,10 @@ public final class SqlStorage implements AutoCloseable {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt(); executor.shutdownNow();
             logger.log(Level.WARNING, "Interrupted while closing database executor", interrupted);
+        } finally {
+            HikariDataSource source = dataSource;
+            if (source != null) source.close();
+            status.set(Status.CLOSED);
         }
     }
 }

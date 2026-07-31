@@ -129,7 +129,9 @@ public final class ConfigManager {
                 integer(y, "back.cooldown-seconds", 0, 86400, 30), new SaveOn(y.getBoolean("back.save-on.tpa", true),
                 y.getBoolean("back.save-on.tpahere", true), y.getBoolean("back.save-on.admin-teleport", true),
                 y.getBoolean("back.save-on.death", false), y.getBoolean("back.save-on.portal", false)));
-        History history = new History(y.getBoolean("history.enabled", true), integer(y, "history.default-size", 1, 1000, 20));
+        History history = new History(y.getBoolean("history.enabled", true),
+                integer(y, "history.default-size", 1, 1000, 20),
+                integer(y, "history.retention-days", 1, 36500, 90));
         Statistics statistics = new Statistics(y.getBoolean("statistics.enabled", true),
                 integer(y, "statistics.flush-seconds", 5, 3600, 30));
         return new Main(y.getBoolean("debug", false), language, requests, teleport, safety, trap, trusted, back,
