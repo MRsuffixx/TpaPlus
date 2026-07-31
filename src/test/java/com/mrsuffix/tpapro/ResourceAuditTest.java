@@ -35,6 +35,10 @@ class ResourceAuditTest {
                 "tpapro.admin.debug", "tpapro.admin.inspect", "tpapro.admin.clear-requests",
                 "tpapro.admin.reset-cooldown", "tpapro.admin.force-teleport");
         assertThat(stringList(plugin.get("softdepend"))).contains("Vault", "PlaceholderAPI", "WorldGuard", "CombatLogX", "PvPManager");
+        for (String permission : java.util.List.of("tpapro.use", "tpapro.tpa", "tpapro.accept", "tpapro.trust", "tpapro.block"))
+            assertThat(cast(permissions.get(permission)).get("default")).as(permission).isEqualTo(true);
+        for (String permission : java.util.List.of("tpapro.bypass.cooldown", "tpapro.bypass.safety", "tpapro.admin"))
+            assertThat(cast(permissions.get(permission)).get("default")).as(permission).isEqualTo("op");
         assertThat(plugin.toString()).doesNotContain("Velocity", "BungeeCord", "Redis");
     }
 

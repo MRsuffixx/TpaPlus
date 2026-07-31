@@ -103,7 +103,7 @@ public final class GuiManager implements Listener {
         switch (holder.type()) {
             case REQUESTS -> {
                 TeleportRequest request = (TeleportRequest) action;
-                if (!request.targetId().equals(player.getUniqueId())) return;
+                if (!canActOnRequest(player.getUniqueId(), request)) return;
                 if (event.isRightClick()) coordinator.denyById(player.getUniqueId(), request.id()); else coordinator.acceptById(player.getUniqueId(), request.id());
                 openRequests(player, holder.page());
             }
@@ -190,4 +190,5 @@ public final class GuiManager implements Listener {
     private static Material material(String value) { Material found = Material.matchMaterial(value); return found == null ? Material.STONE : found; }
     private static int safeSize(int size) { int rounded = Math.max(9, Math.min(54, (size / 9) * 9)); return rounded == 0 ? 9 : rounded; }
     private static String name(UUID id) { OfflinePlayer player = Bukkit.getOfflinePlayer(id); return player.getName() == null ? id.toString().substring(0, 8) : player.getName(); }
+    static boolean canActOnRequest(UUID viewer, TeleportRequest request) { return request.targetId().equals(viewer); }
 }
