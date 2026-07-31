@@ -12,7 +12,7 @@
 TpaPro is a UUID-based teleport request plugin for modern Paper servers. It provides a race-safe request lifecycle, configurable warmups and cooldowns, safe destination search, privacy controls, trust and block relationships, teleport history, statistics, SQL persistence, optional economy/region/combat integrations, inventory menus, localization, and a public Bukkit API.
 
 Author: **MRsuffix**  
-Version: **1.0.0-SNAPSHOT**  
+Version: **1.0.0**
 Package: `com.mrsuffix.tpapro`
 
 ## Requirements and compatibility
@@ -46,7 +46,7 @@ Optional soft dependencies are Vault, PlaceholderAPI, WorldGuard, CombatLogX, an
 ## Installation
 
 1. Stop the Paper server.
-2. Copy `TpaPro-1.0.0-SNAPSHOT.jar` into `plugins/`.
+2. Copy `TpaPro-1.0.0.jar` into `plugins/`.
 3. Start the server. TpaPro copies all configuration and language resources without overwriting existing files.
 4. Review `plugins/TpaPro/config.yml`, `storage.yml`, `restrictions.yml`, and `integrations.yml`.
 5. Restart after changing storage type/credentials or optional integration availability. Ordinary settings and language content can be reloaded with `/tpapro reload`.
@@ -106,7 +106,7 @@ Values in `config.yml` are selected by permission. For warmups, cooldowns, and c
 - `menus.yml`: titles, sizes, materials, and presentation
 - `messages/en_US.yml`, `messages/tr_TR.yml`: localized MiniMessage templates
 
-Numeric values are bounded and invalid enum/value input falls back with a server warning. Configuration files carry `config-version: 1`; older versions are backed up before compatibility defaults are applied. Locale identifiers and SQLite filenames are path-safe validated.
+Numeric values are bounded and invalid enum/value input falls back with a server warning. Configuration files carry `config-version: 2`; older files are copied into `plugins/TpaPro/backups/`, migrated to the current version, and rotated to the three newest backups per file. Locale identifiers and SQLite filenames are path-safe validated. Teleport history defaults to a 90-day retention period through `history.retention-days`.
 
 ## Database setup
 
@@ -155,7 +155,7 @@ API request methods and events are server-thread operations. Request snapshots a
 
 The Java 21 toolchain, UTF-8 compilation, JUnit 5, reproducible archives, and a dependency-inclusive plugin JAR are configured in Gradle Kotlin DSL. Paper and optional server APIs are `compileOnly` and are not bundled.
 
-Core tests cover lifecycle transitions, duplicate policies, expiration, ambiguity, cooldown arithmetic, permission values, movement, warmup isolation, safety rules, privacy/trust/block logic, economy idempotency, message fallback, configuration validation, task reload idempotency, and SQLite uniqueness/persistence.
+Core tests cover lifecycle transitions, duplicate replacement refunds, expiration, ambiguity, cooldown arithmetic, permission values, movement, warmup isolation, administrative safety validation, bounded confirmation tokens, GUI authorization, MiniMessage placeholder isolation, settings persistence races, graceful write draining, backup rotation, history retention, privacy/trust/block logic, economy idempotency, message fallback, configuration validation, reload idempotency, and SQLite uniqueness/persistence.
 
 ## Support and credits
 

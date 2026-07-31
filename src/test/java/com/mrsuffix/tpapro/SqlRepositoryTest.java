@@ -13,6 +13,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.UUID;
 import java.util.logging.Logger;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,6 +50,29 @@ class SqlRepositoryTest {
             assertThat(repository.pruneHistoryBefore(cutoff).join()).isOne();
             assertThat(repository.history(player, 10, 0).join()).singleElement().satisfies(entry ->
                     assertThat(entry.timestamp()).isEqualTo(cutoff));
+        }
+    }
+
+    @Test void invalidStoredLanguageFallsBackAndEmitsOperatorWarning() {
+        Storage config = new Storage(StorageType.SQLITE, "jdbc:sqlite:" + temporary.resolve("language.db"), "", "", 1, 1,
+                10_000, 1_800_000, 0, 5, false);
+        Logger logger = Logger.getAnonymousLogger(); java.util.List<String> warnings = new java.util.concurrent.CopyOnWriteArrayList<>();
+        logger.setUseParentHandlers(false); logger.addHandler(new Handler() {
+            @Override public void publish(LogRecord record) { warnings.add(record.getMessage()); }
+            @Override public void flush() { }
+            @Override public void close() { }
+        });
+        try (SqlStorage storage = new SqlStorage(config, logger)) {
+            storage.initialize().join(); SqlPlayerDataRepository repository = new SqlPlayerDataRepository(storage, logger);
+            UUID player = UUID.randomUUID(); repository.saveSettings(player, PlayerSettings.defaults("en_US")).join();
+            storage.query(connection -> {
+                try (var statement = connection.prepareStatement("UPDATE tpapro_players SET language=? WHERE uuid=?")) {
+                    statement.setString(1, "../../unsafe"); statement.setString(2, player.toString()); statement.executeUpdate();
+                }
+                return null;
+            }).join();
+            assertThat(repository.load(player, PlayerSettings.defaults("en_US")).join().settings().language()).isNull();
+            assertThat(warnings).anyMatch(message -> message.contains("invalid stored language") && message.contains(player.toString()));
         }
     }
 }

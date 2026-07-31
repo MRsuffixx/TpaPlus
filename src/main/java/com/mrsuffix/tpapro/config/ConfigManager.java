@@ -12,7 +12,6 @@ import org.bukkit.Registry;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -252,6 +251,9 @@ public final class ConfigManager {
             File source = new File(plugin.getDataFolder(), name);
             try { ConfigBackupManager.backup(source.toPath(), new File(plugin.getDataFolder(), "backups").toPath(), RETAINED_CONFIG_BACKUPS); }
             catch (IOException e) { throw new IllegalStateException("Could not back up old " + name, e); }
+            y.set("config-version", CONFIG_VERSION);
+            try { y.save(source); }
+            catch (IOException e) { throw new IllegalStateException("Could not write migrated " + name, e); }
             logger.warning(name + " uses configuration version " + version + "; a rotated backup was created. Safe defaults cover missing keys.");
         }
     }

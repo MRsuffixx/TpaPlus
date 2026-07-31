@@ -3,7 +3,6 @@ package com.mrsuffix.tpapro.config;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 
@@ -13,7 +12,7 @@ final class ConfigBackupManager {
     static Path backup(Path source, Path backupDirectory, int retain) throws IOException {
         Files.createDirectories(backupDirectory);
         Path backup = Files.createTempFile(backupDirectory, source.getFileName() + ".backup-", ".yml");
-        Files.copy(source, backup, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+        Files.copy(source, backup, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         rotate(backupDirectory, source.getFileName() + ".backup-", Math.max(1, retain));
         return backup;
     }

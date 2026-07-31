@@ -38,8 +38,18 @@ class PolicyEconomyMessageTest {
     }
     @Test void economyRejectsInsufficientBalanceWithoutTransaction() {
         FakeEconomy gateway = new FakeEconomy(); EconomyTransactionService service = new EconomyTransactionService(gateway);
-        assertThat(service.chargeOnce(UUID.randomUUID(), UUID.randomUUID(), 101, false).status()).isEqualTo(EconomyTransactionService.Status.INSUFFICIENT);
-        assertThat(gateway.withdrawals).isZero();
+        UUID transaction = UUID.randomUUID();
+        assertThat(service.chargeOnce(transaction, UUID.randomUUID(), 101, false).status()).isEqualTo(EconomyTransactionService.Status.INSUFFICIENT);
+        assertThat(gateway.withdrawals).isZero(); assertThat(service.trackedTransactions()).isZero();
+    }
+    @Test void economyProviderExceptionFailsSafelyWithoutTrackingTransaction() {
+        EconomyGateway gateway = new FakeEconomy() {
+            @Override public Transaction withdraw(UUID playerId, double amount) { throw new IllegalStateException("provider disappeared"); }
+        };
+        EconomyTransactionService service = new EconomyTransactionService(gateway);
+        assertThat(service.chargeOnce(UUID.randomUUID(), UUID.randomUUID(), 25, false).status())
+                .isEqualTo(EconomyTransactionService.Status.FAILED);
+        assertThat(service.trackedTransactions()).isZero();
     }
     @Test void messageCatalogFallsBackByLocaleAndKeyAndNeverReturnsNull() {
         MessageCatalog catalog = new MessageCatalog("en_US", Map.of("en_US", Map.of("hello", "Hello"), "tr_TR", Map.of("other", "Diğer")));
@@ -48,7 +58,7 @@ class PolicyEconomyMessageTest {
         assertThat(catalog.get("tr_TR", "missing")).contains("Missing message");
     }
     private static PlayerSettings settings(PrivacyMode mode) { return PlayerSettings.defaults("en_US").withPrivacy(mode); }
-    private static final class FakeEconomy implements EconomyGateway {
+    private static class FakeEconomy implements EconomyGateway {
         private double balance = 100; private int withdrawals; private int deposits;
         @Override public boolean available() { return true; } @Override public double balance(UUID playerId) { return balance; }
         @Override public Transaction withdraw(UUID playerId, double amount) { withdrawals++; balance -= amount; return new Transaction(true, balance, ""); }

@@ -20,23 +20,39 @@ public final class EconomyTransactionService {
         Objects.requireNonNull(transactionId, "transactionId");
         Objects.requireNonNull(payer, "payer");
         if (!Double.isFinite(amount) || amount < 0) throw new IllegalArgumentException("Invalid amount");
-        if (bypass || amount == 0) return new Result(Status.BYPASSED, 0, gateway.available() ? gateway.balance(payer) : 0, null);
+        if (bypass || amount == 0) return new Result(Status.BYPASSED, 0, safeBalance(payer), null);
         AtomicReference<Result> outcome = new AtomicReference<>();
         transactions.compute(transactionId, (ignored, existing) -> {
             if (existing != null) {
-                outcome.set(new Result(Status.ALREADY_CHARGED, existing.amount, gateway.balance(existing.payer), null));
+                outcome.set(new Result(Status.ALREADY_CHARGED, existing.amount, safeBalance(existing.payer), null));
                 return existing;
             }
-            if (!gateway.available()) {
+            boolean available;
+            try { available = gateway.available(); }
+            catch (RuntimeException failure) {
+                outcome.set(new Result(Status.FAILED, amount, 0, failure.getMessage()));
+                return null;
+            }
+            if (!available) {
                 outcome.set(new Result(Status.UNAVAILABLE, amount, 0, "unavailable"));
                 return null;
             }
-            double balance = gateway.balance(payer);
+            double balance;
+            try { balance = gateway.balance(payer); }
+            catch (RuntimeException failure) {
+                outcome.set(new Result(Status.FAILED, amount, 0, failure.getMessage()));
+                return null;
+            }
             if (!Double.isFinite(balance) || balance < amount) {
                 outcome.set(new Result(Status.INSUFFICIENT, amount, balance, "insufficient"));
                 return null;
             }
-            EconomyGateway.Transaction result = gateway.withdraw(payer, amount);
+            EconomyGateway.Transaction result;
+            try { result = gateway.withdraw(payer, amount); }
+            catch (RuntimeException failure) {
+                outcome.set(new Result(Status.FAILED, amount, balance, failure.getMessage()));
+                return null;
+            }
             if (!result.success()) {
                 outcome.set(new Result(Status.FAILED, amount, result.balance(), result.error()));
                 return null;
@@ -51,7 +67,12 @@ public final class EconomyTransactionService {
         Objects.requireNonNull(transactionId, "transactionId");
         AtomicReference<Result> outcome = new AtomicReference<>(new Result(Status.NOT_CHARGED, 0, 0, null));
         transactions.computeIfPresent(transactionId, (ignored, state) -> {
-            EconomyGateway.Transaction result = gateway.deposit(state.payer, state.amount);
+            EconomyGateway.Transaction result;
+            try { result = gateway.deposit(state.payer, state.amount); }
+            catch (RuntimeException failure) {
+                outcome.set(new Result(Status.FAILED, state.amount, safeBalance(state.payer), failure.getMessage()));
+                return state;
+            }
             if (!result.success()) {
                 outcome.set(new Result(Status.FAILED, state.amount, result.balance(), result.error()));
                 return state;
@@ -65,5 +86,9 @@ public final class EconomyTransactionService {
     public boolean charged(UUID transactionId) { return transactions.containsKey(transactionId); }
     public void forget(UUID transactionId) { transactions.remove(transactionId); }
     public int trackedTransactions() { return transactions.size(); }
+    private double safeBalance(UUID payer) {
+        try { return gateway.available() ? gateway.balance(payer) : 0; }
+        catch (RuntimeException unavailable) { return 0; }
+    }
     private record State(double amount, UUID payer) { }
 }

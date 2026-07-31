@@ -224,6 +224,7 @@ public final class RequestCoordinator {
             settleTerminal(request);
             return RequestOutcome.failure(RequestFailure.INVALID_STATE);
         }
+        confirmations.invalidateRequest(request.id());
         debug.accept("request=" + request.id() + " accepted target=" + target.getUniqueId() + " traveler=" + traveler.getUniqueId());
         int warmup = (int) groupResolver.resolve(configs.get().main().permissionGroups().get("warmup"), traveler::hasPermission,
                 configs.get().main().teleport().warmupSeconds(), PermissionGroupResolver.Benefit.LOWEST);
