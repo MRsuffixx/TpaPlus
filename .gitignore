@@ -1,0 +1,108 @@
+# ==========================================
+# Derleme ve Build Çıktıları (Gradle & Maven)
+# ==========================================
+.gradle/
+build/
+out/
+target/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+*.class
+*.jar
+*.war
+*.ear
+
+# ==========================================
+# IDE ve Editör Dosyaları
+# ==========================================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ==========================================
+# Yerel Test Sunucusu ve Çalışma Dosyaları
+# ==========================================
+# Plugini test etmek için kurduğun yerel sunucu klasörleri
+run/
+server/
+test-server/
+cache/
+
+# Sunucu yapılandırma ve güvenlik dosyaları
+eula.txt
+ops.json
+whitelist.json
+banned-players.json
+banned-ips.json
+usercache.json
+help.yml
+bukkit.yml
+spigot.yml
+paper.yml
+purpur.yml
+
+# ==========================================
+# Veritabanı ve Yerel Depolama
+# ==========================================
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Loglar ve Çökme Raporları
+# ==========================================
+logs/
+crash-reports/
+*.log
+
+# ==========================================
+# İşletim Sistemi Dosyaları
+# ==========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+
+# ==========================================
+# Gizli Bilgiler ve Diğerleri
+# ==========================================
+# API anahtarları veya hassas veriler içeriyorsa
+.env
+*.pem
+*.key
+
+# Geçici dosyalar
+*.tmp
+*.bak
+*.swp

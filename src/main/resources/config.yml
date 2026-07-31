@@ -1,0 +1,116 @@
+config-version: 1
+debug: false
+language:
+  default: en_US
+  fallback: en_US
+  allow-player-selection: true
+requests:
+  expiration-seconds: 60
+  send-cooldown-seconds: 30
+  max-pending-per-target: 5
+  max-outgoing-per-sender: 3
+  duplicate-behavior: REFRESH
+  cancel-on-sender-quit: true
+  invalidate-on-target-quit: true
+teleport:
+  warmup-seconds: 5
+  successful-teleport-cooldown-seconds: 0
+  cancel-on-move: true
+  movement-tolerance: 0.15
+  cancel-on-damage: true
+  cancel-on-attack: true
+  cancel-on-world-change: true
+  cancel-on-quit: true
+  cancel-on-death: true
+  cancel-on-command: false
+  notifications:
+    chat: true
+    action-bar: true
+    title: false
+    sound: true
+safe-teleport:
+  enabled: true
+  search-nearby-location: true
+  horizontal-search-radius: 5
+  vertical-search-radius: 4
+  maximum-block-checks: 512
+  require-solid-ground: true
+  prevent-lava: true
+  prevent-fire: true
+  prevent-campfire: true
+  prevent-cactus: true
+  prevent-magma: true
+  prevent-powder-snow: true
+  prevent-berry-bush: true
+  prevent-void: true
+  prevent-suffocation: true
+  allow-nether-roof: false
+  maximum-safe-fall-distance: 3
+trap-protection:
+  mode: WARN
+  confirmation-seconds: 15
+  scan-radius: 3
+  lava: true
+  large-drop: true
+  tnt: true
+  end-crystals: true
+  suffocation: true
+  unsafe-enclosure: true
+  dangerous-blocks: true
+  target-in-combat: true
+trusted-players:
+  maximum: 30
+  mutual: false
+  friends-fallback: TRUSTED
+  benefits:
+    auto-accept: true
+    reduced-warmup: true
+    warmup-multiplier: 0.5
+    reduced-cooldown: false
+    cooldown-multiplier: 0.5
+    reduced-cost: false
+    cost-multiplier: 0.5
+back:
+  enabled: true
+  expiration-seconds: 600
+  cooldown-seconds: 30
+  save-on:
+    tpa: true
+    tpahere: true
+    admin-teleport: true
+    death: false
+    portal: false
+history:
+  enabled: true
+  default-size: 20
+statistics:
+  enabled: true
+  flush-seconds: 30
+gui:
+  enabled: true
+update-checker:
+  enabled: false
+permission-groups:
+  warmup:
+    - {permission: tpapro.group.admin, value: 0}
+    - {permission: tpapro.group.vip, value: 2}
+    - {permission: tpapro.use, value: 5}
+  request-cooldown:
+    - {permission: tpapro.group.admin, value: 0}
+    - {permission: tpapro.group.vip, value: 10}
+    - {permission: tpapro.use, value: 30}
+  teleport-cost:
+    - {permission: tpapro.group.admin, value: 0.0}
+    - {permission: tpapro.use, value: 100.0}
+  max-pending:
+    - {permission: tpapro.group.admin, value: 100}
+    - {permission: tpapro.group.vip, value: 10}
+    - {permission: tpapro.use, value: 5}
+  history-size:
+    - {permission: tpapro.group.admin, value: 100}
+    - {permission: tpapro.group.vip, value: 50}
+    - {permission: tpapro.use, value: 20}
+  trusted-limit:
+    - {permission: tpapro.group.admin, value: 500}
+    - {permission: tpapro.group.vip, value: 75}
+    - {permission: tpapro.use, value: 30}

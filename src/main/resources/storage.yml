@@ -1,0 +1,20 @@
+config-version: 1
+type: SQLITE
+sqlite:
+  file: tpapro.db
+sql:
+  host: localhost
+  port: 3306
+  database: tpapro
+  username: tpapro
+  password: change-me
+  parameters: "useSSL=false&serverTimezone=UTC"
+pool:
+  maximum-size: 10
+  minimum-idle: 1
+  connection-timeout-millis: 10000
+  max-lifetime-millis: 1800000
+  leak-detection-threshold-millis: 0
+shutdown-timeout-seconds: 10
+cooldowns:
+  persist: false

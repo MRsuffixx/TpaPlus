@@ -1,0 +1,30 @@
+config-version: 1
+shared:
+  previous: {material: ARROW, name: "<yellow>Previous page", slot: 45}
+  close: {material: BARRIER, name: "<red>Close", slot: 49}
+  next: {material: ARROW, name: "<yellow>Next page", slot: 53}
+pending:
+  title: "<dark_aqua>TpaPro Requests <gray>(<page>/<total_pages>)"
+  size: 54
+  item: {material: ENDER_PEARL, name: "<aqua><player>", lore: ["<gray><request_type>", "<green>Left-click: accept", "<red>Right-click: deny"]}
+settings:
+  title: "<dark_aqua>TpaPro Settings"
+  size: 27
+  item: {material: COMPARATOR, name: "<aqua><setting>", lore: ["<gray><value>", "<yellow>Click to change"]}
+  items:
+    privacy: {slot: 10, material: ENDER_EYE, name: "<aqua>Privacy: <white><value>", lore: ["<yellow>Click to cycle"]}
+    auto-accept: {slot: 12, material: COMPARATOR, name: "<aqua>Auto accept: <white><value>", lore: ["<yellow>Click to toggle"]}
+    sounds: {slot: 14, material: NOTE_BLOCK, name: "<aqua>Sounds: <white><value>", lore: ["<yellow>Click to toggle"]}
+    language: {slot: 16, material: WRITABLE_BOOK, name: "<aqua>Language: <white><value>", lore: ["<yellow>Click to cycle"]}
+trusted:
+  title: "<dark_aqua>Trusted Players <gray>(<page>/<total_pages>)"
+  size: 54
+  item: {material: PLAYER_HEAD, name: "<green><player>", lore: ["<red>Click to remove"]}
+blocked:
+  title: "<dark_aqua>Blocked Players <gray>(<page>/<total_pages>)"
+  size: 54
+  item: {material: BARRIER, name: "<red><player>", lore: ["<yellow>Click to unblock"]}
+history:
+  title: "<dark_aqua>Teleport History <gray>(<page>/<total_pages>)"
+  size: 54
+  item: {material: COMPASS, name: "<aqua><request_type>", lore: ["<gray><world> <x>, <y>, <z>"]}

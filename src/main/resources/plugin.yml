@@ -1,0 +1,126 @@
+name: TpaPro
+version: '${version}'
+main: com.mrsuffix.tpapro.TpaProPlugin
+api-version: '1.21'
+author: MRsuffix
+description: Secure, configurable teleport requests for modern Paper servers.
+website: https://github.com/MRsuffix/TpaPro
+softdepend: [Vault, PlaceholderAPI, WorldGuard, CombatLogX, PvPManager]
+
+commands:
+  tpa:
+    description: Request to teleport to another player.
+    usage: /tpa <player>
+    permission: tpapro.tpa
+  tpahere:
+    description: Request another player to teleport to you.
+    usage: /tpahere <player>
+    permission: tpapro.tpahere
+  tpaccept:
+    description: Accept a teleport request.
+    usage: /tpaccept [player]
+    aliases: [tpyes]
+    permission: tpapro.accept
+  tpdeny:
+    description: Deny a teleport request.
+    usage: /tpdeny [player]
+    aliases: [tpno]
+    permission: tpapro.deny
+  tpcancel:
+    description: Cancel an outgoing teleport request.
+    usage: /tpcancel [player]
+    permission: tpapro.cancel
+  tpatoggle:
+    description: Toggle incoming teleport requests.
+    usage: /tpatoggle
+    permission: tpapro.toggle
+  tpautaccept:
+    description: Toggle automatic acceptance globally or for a trusted player.
+    usage: /tpautaccept [player]
+    permission: tpapro.autaccept
+  tpblock:
+    description: Block teleport requests from a player.
+    usage: /tpblock <player>
+    permission: tpapro.block
+  tpunblock:
+    description: Unblock a player.
+    usage: /tpunblock <player>
+    permission: tpapro.block
+  tpblocklist:
+    description: View blocked players.
+    usage: /tpblocklist [page]
+    permission: tpapro.block
+  tpatrust:
+    description: Manage trusted players.
+    usage: /tpatrust <add|remove|list> [player]
+    permission: tpapro.trust
+  tpalist:
+    description: View pending and sent requests.
+    usage: /tpalist [page]
+    permission: tpapro.list
+  tpasettings:
+    description: View or change TpaPro settings.
+    usage: /tpasettings [setting] [value]
+    permission: tpapro.settings
+  tpback:
+    description: Return to your previous teleport location.
+    usage: /tpback
+    permission: tpapro.back
+  tphistory:
+    description: View teleport history.
+    usage: /tphistory [page]
+    permission: tpapro.history
+  tpastats:
+    description: View teleport statistics.
+    usage: /tpastats [player]
+    permission: tpapro.stats
+  tpapro:
+    description: TpaPro main and administration command.
+    usage: /tpapro [help|reload|info|debug|inspect|requests|cooldown|forceteleport]
+    aliases: [tppro]
+    permission: tpapro.use
+
+permissions:
+  tpapro.use: {default: true}
+  tpapro.tpa: {default: true}
+  tpapro.tpahere: {default: true}
+  tpapro.accept: {default: true}
+  tpapro.deny: {default: true}
+  tpapro.cancel: {default: true}
+  tpapro.toggle: {default: true}
+  tpapro.autaccept: {default: true}
+  tpapro.block: {default: true}
+  tpapro.trust: {default: true}
+  tpapro.list: {default: true}
+  tpapro.settings: {default: true}
+  tpapro.back: {default: true}
+  tpapro.history: {default: true}
+  tpapro.stats: {default: true}
+  tpapro.bypass.cooldown: {default: op}
+  tpapro.bypass.warmup: {default: op}
+  tpapro.bypass.cost: {default: op}
+  tpapro.bypass.combat: {default: op}
+  tpapro.bypass.world: {default: op}
+  tpapro.bypass.region: {default: op}
+  tpapro.bypass.safety: {default: op}
+  tpapro.bypass.move-cancel: {default: op}
+  tpapro.bypass.damage-cancel: {default: op}
+  tpapro.admin:
+    default: op
+    children:
+      tpapro.admin.help: true
+      tpapro.admin.reload: true
+      tpapro.admin.info: true
+      tpapro.admin.debug: true
+      tpapro.admin.inspect: true
+      tpapro.admin.clear-requests: true
+      tpapro.admin.reset-cooldown: true
+      tpapro.admin.force-teleport: true
+  tpapro.admin.help: {default: op}
+  tpapro.admin.reload: {default: op}
+  tpapro.admin.info: {default: op}
+  tpapro.admin.debug: {default: op}
+  tpapro.admin.inspect: {default: op}
+  tpapro.admin.clear-requests: {default: op}
+  tpapro.admin.reset-cooldown: {default: op}
+  tpapro.admin.force-teleport: {default: op}

@@ -1,0 +1,12 @@
+config-version: 1
+enabled: true
+request-sent: {sound: BLOCK_NOTE_BLOCK_PLING, volume: 0.8, pitch: 1.2}
+request-received: {sound: BLOCK_NOTE_BLOCK_CHIME, volume: 0.8, pitch: 1.0}
+request-accepted: {sound: ENTITY_EXPERIENCE_ORB_PICKUP, volume: 0.9, pitch: 1.2}
+request-denied: {sound: ENTITY_VILLAGER_NO, volume: 0.8, pitch: 1.0}
+request-expired: {sound: BLOCK_NOTE_BLOCK_BASS, volume: 0.7, pitch: 0.8}
+warmup-tick: {sound: BLOCK_NOTE_BLOCK_HAT, volume: 0.5, pitch: 1.1}
+teleport-success: {sound: ENTITY_ENDERMAN_TELEPORT, volume: 1.0, pitch: 1.0}
+teleport-cancelled: {sound: BLOCK_GLASS_BREAK, volume: 0.8, pitch: 0.8}
+error: {sound: ENTITY_VILLAGER_NO, volume: 0.8, pitch: 0.8}
+warning: {sound: BLOCK_NOTE_BLOCK_DIDGERIDOO, volume: 0.8, pitch: 0.8}

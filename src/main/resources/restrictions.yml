@@ -1,0 +1,19 @@
+config-version: 1
+world-restrictions:
+  mode: BLACKLIST
+  worlds: [event_world, dungeon]
+  cross-world:
+    enabled: true
+    blocked-routes:
+      - {from: world_the_end, to: world}
+combat:
+  enabled: true
+  duration-seconds: 15
+  block-request-sending: true
+  block-request-accepting: true
+  block-teleport-start: true
+  cancel-active-warmup: true
+region:
+  enabled: true
+  check-source: true
+  check-destination: true

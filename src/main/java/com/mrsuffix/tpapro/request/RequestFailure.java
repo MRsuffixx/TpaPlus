@@ -1,0 +1,25 @@
+package com.mrsuffix.tpapro.request;
+
+public enum RequestFailure {
+    NONE,
+    SELF_REQUEST,
+    DUPLICATE,
+    SENDER_LIMIT,
+    TARGET_LIMIT,
+    NOT_FOUND,
+    MULTIPLE_MATCHES,
+    INVALID_STATE,
+    EXPIRED,
+    PLAYER_OFFLINE,
+    BLOCKED,
+    PRIVACY,
+    COOLDOWN,
+    COMBAT,
+    WORLD,
+    REGION,
+    ECONOMY,
+    UNSAFE,
+    EVENT_CANCELLED,
+    CONFIRMATION_REQUIRED,
+    NOT_READY
+}

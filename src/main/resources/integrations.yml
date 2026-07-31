@@ -1,0 +1,19 @@
+config-version: 1
+economy:
+  enabled: false
+  charge-mode: ON_SUCCESS
+  refund-on-failure: true
+  costs:
+    tpa: 100.0
+    tpahere: 150.0
+    tpback: 250.0
+vault:
+  enabled: true
+placeholderapi:
+  enabled: true
+worldguard:
+  enabled: true
+combatlogx:
+  enabled: true
+pvpmanager:
+  enabled: true
