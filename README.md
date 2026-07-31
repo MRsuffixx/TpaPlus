@@ -1,5 +1,7 @@
 # TpaPro
-
+<center>
+<img src="img/banner.png">
+</center>
 TpaPro is a UUID-based teleport request plugin for modern Paper servers. It provides a race-safe request lifecycle, configurable warmups and cooldowns, safe destination search, privacy controls, trust and block relationships, teleport history, statistics, SQL persistence, optional economy/region/combat integrations, inventory menus, localization, and a public Bukkit API.
 
 Author: **MRsuffix**  

@@ -23,6 +23,11 @@ public final class UserProfile {
     }
     public synchronized PlayerSettings settings() { return settings; }
     public synchronized void settings(PlayerSettings value) { settings = value; }
+    public synchronized boolean replaceSettings(PlayerSettings expected, PlayerSettings value) {
+        if (!settings.equals(expected)) return false;
+        settings = value;
+        return true;
+    }
     public synchronized boolean trust(UUID id) { return trusted.add(id); }
     public synchronized boolean untrust(UUID id) { return trusted.remove(id); }
     public synchronized boolean block(UUID id) { return blocked.add(id); }

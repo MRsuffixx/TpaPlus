@@ -22,6 +22,8 @@ public final class UserService {
     private final Map<UUID, CompletableFuture<UserProfile>> loads = new ConcurrentHashMap<>();
     private final Set<UUID> loaded = ConcurrentHashMap.newKeySet();
     private final Map<UUID, java.util.concurrent.atomic.AtomicLong> generations = new ConcurrentHashMap<>();
+    private final Map<UUID, PlayerSettings> persistedSettings = new ConcurrentHashMap<>();
+    private final Map<UUID, CompletableFuture<Void>> settingsWrites = new ConcurrentHashMap<>();
 
     public UserService(PlayerDataRepository repository, Logger logger, String defaultLocale) {
         this.repository = repository; this.logger = logger; this.defaultLocale = defaultLocale;
@@ -35,7 +37,9 @@ public final class UserService {
             return repository.load(id, PlayerSettings.defaults(defaultLocale)).thenApply(data -> {
             UserProfile profile = new UserProfile(data.settings(), data.trusted(), data.blocked(), data.autoAcceptPlayers(), data.backLocation());
                 java.util.concurrent.atomic.AtomicLong marker = generations.get(id);
-                if (marker != null && marker.get() == generation) { profiles.put(id, profile); loaded.add(id); }
+                if (marker != null && marker.get() == generation) {
+                    profiles.put(id, profile); persistedSettings.put(id, data.settings()); loaded.add(id);
+                }
                 return profile;
             });
         });
@@ -44,14 +48,37 @@ public final class UserService {
     }
 
     public UserProfile get(UUID id) {
-        return profiles.computeIfAbsent(id, ignored -> new UserProfile(PlayerSettings.defaults(defaultLocale), Set.of(), Set.of(), Set.of(), null));
+        return profiles.computeIfAbsent(id, ignored -> {
+            PlayerSettings defaults = PlayerSettings.defaults(defaultLocale);
+            persistedSettings.putIfAbsent(id, defaults);
+            return new UserProfile(defaults, Set.of(), Set.of(), Set.of(), null);
+        });
     }
 
     public Optional<UserProfile> cached(UUID id) { return Optional.ofNullable(profiles.get(id)); }
 
-    public void updateSettings(UUID id, PlayerSettings settings) {
-        get(id).settings(settings);
-        repository.saveSettings(id, settings).exceptionally(error -> { log("save settings", id, error); return null; });
+    public CompletableFuture<Boolean> updateSettings(UUID id, PlayerSettings settings) {
+        UserProfile profile = get(id);
+        profile.settings(settings);
+        CompletableFuture<Boolean> result;
+        synchronized (settingsWrites) {
+            CompletableFuture<Void> previous = settingsWrites.getOrDefault(id, CompletableFuture.completedFuture(null));
+            CompletableFuture<Void> write = previous.handle((ignored, error) -> null)
+                    .thenCompose(ignored -> repository.saveSettings(id, settings));
+            settingsWrites.put(id, write);
+            result = write.handle((ignored, error) -> {
+                if (error == null) {
+                    if (profiles.get(id) == profile) persistedSettings.put(id, settings);
+                    return true;
+                }
+                PlayerSettings confirmed = persistedSettings.getOrDefault(id, PlayerSettings.defaults(defaultLocale));
+                profile.replaceSettings(settings, confirmed);
+                log("save settings", id, error);
+                return false;
+            });
+            result.whenComplete((ignored, error) -> settingsWrites.remove(id, write));
+        }
+        return result;
     }
 
     public boolean addTrusted(UUID owner, UUID target, int limit) {
@@ -102,7 +129,7 @@ public final class UserService {
     public boolean loaded(UUID id) { return loaded.contains(id); }
     public void unload(UUID id) {
         java.util.concurrent.atomic.AtomicLong generation = generations.computeIfAbsent(id, key -> new java.util.concurrent.atomic.AtomicLong());
-        generation.incrementAndGet(); profiles.remove(id); loaded.remove(id);
+        generation.incrementAndGet(); profiles.remove(id); persistedSettings.remove(id); loaded.remove(id);
         CompletableFuture<UserProfile> pending = loads.remove(id);
         if (pending == null) generations.remove(id, generation);
         else pending.whenComplete((profile, error) -> { if (!loaded.contains(id)) generations.remove(id, generation); });

@@ -9,6 +9,7 @@ import com.mrsuffix.tpapro.request.TeleportRequest;
 import com.mrsuffix.tpapro.settings.PlayerSettings;
 import com.mrsuffix.tpapro.settings.PrivacyMode;
 import com.mrsuffix.tpapro.user.UserService;
+import com.mrsuffix.tpapro.scheduler.SchedulerAdapter;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -38,10 +39,12 @@ public final class GuiManager implements Listener {
     private static final int PAGE_SIZE = 45;
     private final ConfigManager configs; private final LocaleManager locales; private final RequestRegistry requests;
     private final RequestCoordinator coordinator; private final UserService users; private final MiniMessage mini = MiniMessage.miniMessage();
+    private final SchedulerAdapter scheduler;
     private final Map<UUID, Map<Integer, Object>> actions = new HashMap<>();
     public GuiManager(ConfigManager configs, LocaleManager locales, RequestRegistry requests,
-                      RequestCoordinator coordinator, UserService users) {
+                      RequestCoordinator coordinator, UserService users, SchedulerAdapter scheduler) {
         this.configs = configs; this.locales = locales; this.requests = requests; this.coordinator = coordinator; this.users = users;
+        this.scheduler = scheduler;
     }
 
     public void openRequests(Player player, int page) {
@@ -115,19 +118,29 @@ public final class GuiManager implements Listener {
 
     private void handleSetting(Player player, String key) {
         PlayerSettings settings = users.get(player.getUniqueId()).settings();
+        String selectedLocale = null;
         switch (key) {
             case "privacy" -> settings = settings.withPrivacy(PrivacyMode.values()[(settings.privacyMode().ordinal() + 1) % PrivacyMode.values().length]);
             case "auto" -> settings = settings.withAutoAccept(!settings.autoAccept());
             case "sounds" -> settings = settings.withNotification("sounds", !settings.sounds());
             case "language" -> {
                 List<String> available = locales.availableLocales().stream().sorted().toList();
+                if (available.isEmpty()) return;
                 String current = settings.language() == null ? configs.get().main().language().defaultLocale() : settings.language();
-                settings = settings.withLanguage(available.get((Math.max(0, available.indexOf(current)) + 1) % available.size()));
-                locales.setPreference(player.getUniqueId(), settings.language());
+                int currentIndex = available.indexOf(current);
+                selectedLocale = available.get(currentIndex < 0 ? 0 : (currentIndex + 1) % available.size());
+                settings = settings.withLanguage(selectedLocale);
             }
             default -> { return; }
         }
-        users.updateSettings(player.getUniqueId(), settings); openSettings(player);
+        String locale = selectedLocale;
+        actions.remove(player.getUniqueId());
+        users.updateSettings(player.getUniqueId(), settings).thenAccept(saved -> scheduler.run(() -> {
+            if (!player.isOnline()) return;
+            if (saved && locale != null) locales.setPreference(player.getUniqueId(), locale);
+            if (!saved) locales.send(player, player.getUniqueId(), "errors.database-unavailable");
+            openSettings(player);
+        }));
     }
     private void reopen(Player player, MenuType type, int page) {
         switch (type) { case REQUESTS -> openRequests(player, page); case TRUSTED -> openTrusted(player, page);

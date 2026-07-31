@@ -107,7 +107,7 @@ public final class TpaProPlugin extends JavaPlugin {
             coordinator = new RequestCoordinator(configs, requests, cooldowns, permissions, groups, users,
                     new RequestPolicyEvaluator(), worlds, regions, combat, restrictions, economy, traps, confirmations,
                     teleports, locales, sounds, statistics, new NoFriendsIntegration(), this::debug);
-            GuiManager gui = new GuiManager(configs, locales, requests, coordinator, users);
+            GuiManager gui = new GuiManager(configs, locales, requests, coordinator, users, scheduler);
             lifecycle = new PlayerLifecycleListener(configs, users, repository, locales, cooldowns, coordinator,
                     scheduler, clock, getLogger());
             Bukkit.getPluginManager().registerEvents(builtIn, this); Bukkit.getPluginManager().registerEvents(teleports, this);
