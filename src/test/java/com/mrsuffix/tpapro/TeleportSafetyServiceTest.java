@@ -32,6 +32,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -69,7 +70,7 @@ class TeleportSafetyServiceTest {
             bukkit.when(Bukkit::getPluginManager).thenReturn(pluginManager);
             SafeTeleportService service = new SafeTeleportService(configs);
             assertThat(service.find(UUID.randomUUID(), location, false).reason()).isEqualTo("chunk-unloaded");
-            verify(world, org.mockito.Mockito.never()).getBlockAt(any(Integer.class), any(Integer.class), any(Integer.class));
+            verify(world, org.mockito.Mockito.never()).getBlockAt(anyInt(), anyInt(), anyInt());
         }
     }
 }

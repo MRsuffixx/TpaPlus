@@ -13,6 +13,7 @@ import com.mrsuffix.tpapro.integration.worldguard.RegionIntegration;
 import com.mrsuffix.tpapro.locale.LocaleManager;
 import com.mrsuffix.tpapro.locale.SoundService;
 import com.mrsuffix.tpapro.permission.PermissionGroupResolver;
+import com.mrsuffix.tpapro.permission.Permission;
 import com.mrsuffix.tpapro.permission.PermissionService;
 import com.mrsuffix.tpapro.request.DuplicateBehavior;
 import com.mrsuffix.tpapro.request.RequestCoordinator;
@@ -72,7 +73,8 @@ class RequestCoordinatorEconomyTest {
 
         UserService users = mock(UserService.class); when(users.loaded(any())).thenReturn(true);
         when(users.get(targetId)).thenReturn(new UserProfile(PlayerSettings.defaults("en_US"), Set.of(), Set.of(), Set.of(), null));
-        PermissionService permissions = mock(PermissionService.class); when(permissions.has(any(), any())).thenReturn(true);
+        PermissionService permissions = mock(PermissionService.class);
+        when(permissions.has(any(), any())).thenAnswer(invocation -> invocation.getArgument(1) != Permission.BYPASS_COST);
         WorldRestrictionService worlds = mock(WorldRestrictionService.class);
         when(worlds.check(any(), any(), any(Boolean.class))).thenReturn(new WorldRestrictionService.Result(true, "allowed"));
         RegionIntegration regions = mock(RegionIntegration.class); when(regions.available()).thenReturn(false);
